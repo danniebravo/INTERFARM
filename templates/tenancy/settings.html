@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Configuración · {{ brand.name }}{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-extrabold text-gray-900 mb-5">Configuración</h1>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+    {# Datos de la finca #}
+    <div class="bg-white rounded-2xl border border-black/5 p-6">
+        <h2 class="font-bold text-gray-800 mb-3">Datos de la finca</h2>
+        <form method="post" action="{% url 'tenancy:settings.farm.update' %}" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {% csrf_token %}
+            <label class="text-sm font-semibold md:col-span-2">Nombre
+                <input type="text" name="name" value="{{ farm.name }}" class="mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm">
+            </label>
+            <label class="text-sm font-semibold">Ubicación
+                <input type="text" name="location" value="{{ farm.location|default:'' }}" class="mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm">
+            </label>
+            <label class="text-sm font-semibold">Hectáreas
+                <input type="number" step="0.01" min="0" name="hectares" value="{{ farm.hectares|default:'' }}" class="mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm">
+            </label>
+            <label class="text-sm font-semibold">Tipo de producción
+                <select name="production_type" class="mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm">
+                    {% for v, l in production_types %}<option value="{{ v }}" {% if farm.production_type == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+                </select>
+            </label>
+            <label class="text-sm font-semibold md:col-span-2">Descripción
+                <textarea name="description" rows="2" class="mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm">{{ farm.description|default:'' }}</textarea>
+            </label>
+            <div class="md:col-span-2"><button class="rounded-xl bg-brand hover:bg-brand-dark px-5 py-2.5 text-sm font-semibold text-white">Guardar finca</button></div>
+        </form>
+
+        {% if owner_farms.count > 1 %}
+        <div class="mt-5 border-t border-black/5 pt-4">
+            <p class="text-sm font-bold text-gray-700 mb-2">Cambiar finca activa</p>
+            <form method="post" action="{% url 'tenancy:farm_switch' %}" class="flex gap-2">
+                {% csrf_token %}
+                <select name="farm_id" class="flex-1 rounded-lg border border-black/15 px-3 py-2 text-sm">
+                    {% for f in owner_farms %}<option value="{{ f.id }}" {% if f.id == farm.id %}selected{% endif %}>{{ f.name }}</option>{% endfor %}
+                </select>
+                <button class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white">Cambiar</button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+
+    {# Miembros #}
+    <div class="bg-white rounded-2xl border border-black/5 p-6">
+        <h2 class="font-bold text-gray-800 mb-3">Miembros de la finca</h2>
+        <div class="space-y-2 mb-4 max-h-72 overflow-auto">
+            {% for m in members %}
+            <div class="flex items-center gap-2 border-b border-black/5 pb-2">
+                <div class="min-w-0 flex-1">
+                    <div class="text-sm font-semibold truncate">{{ m.user.full_name|default:m.user.email }}</div>
+                    <div class="text-xs text-gray-500 truncate">{{ m.user.email }}</div>
+                </div>
+                <form method="post" action="{% url 'tenancy:settings.members.role' m.user.id %}" class="flex items-center gap-1">
+                    {% csrf_token %}
+                    <select name="role" class="rounded-lg border border-black/15 px-2 py-1 text-xs" {% if m.role == 'owner' %}disabled{% endif %}>
+                        {% for key, r in roles.items %}<option value="{{ key }}" {% if m.role == key %}selected{% endif %}>{{ r.name }}</option>{% endfor %}
+                    </select>
+                    {% if m.role != 'owner' %}<button class="text-xs text-brand font-semibold">↺</button>{% endif %}
+                </form>
+                {% if m.role != 'owner' %}
+                <form method="post" action="{% url 'tenancy:settings.members.detach' m.user.id %}" onsubmit="return confirm('¿Quitar acceso a este miembro?');">{% csrf_token %}<button class="text-xs text-red-600">✕</button></form>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="border-t border-black/5 pt-4">
+            <p class="text-sm font-bold text-gray-700 mb-2">Agregar miembro (por correo)</p>
+            <form method="post" action="{% url 'tenancy:settings.members.attach' %}" class="flex flex-wrap gap-2">
+                {% csrf_token %}
+                <input type="email" name="email" placeholder="correo@ejemplo.com" class="flex-1 min-w-[180px] rounded-lg border border-black/15 px-3 py-2 text-sm">
+                <select name="role" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+                    {% for key, r in roles.items %}{% if key != 'owner' %}<option value="{{ key }}">{{ r.name }}</option>{% endif %}{% endfor %}
+                </select>
+                <button class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white">Agregar</button>
+            </form>
+            <p class="text-[11px] text-gray-400 mt-1">El usuario debe estar registrado en InterFarm.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

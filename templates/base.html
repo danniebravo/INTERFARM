@@ -80,6 +80,10 @@
                 {% if is_impersonating %}
                     <span class="rounded-full bg-amber-400 px-3 py-1 text-xs font-bold text-amber-950">Viendo como cliente</span>
                 {% endif %}
+                {% if current_farm %}
+                <a href="{% url 'tenancy:settings' %}" class="hidden sm:inline rounded-lg bg-white/15 px-3 py-2 text-sm hover:bg-white/25" title="Configuración">⚙️</a>
+                {% endif %}
+                <a href="{% url 'accounts:profile' %}" class="rounded-lg bg-white/15 px-3 py-2 text-sm hover:bg-white/25" title="Mi perfil">👤</a>
                 <form method="post" action="{% url 'accounts:logout' %}" class="inline">
                     {% csrf_token %}
                     <button type="submit" class="rounded-lg bg-white/15 px-3 py-2 text-sm font-semibold hover:bg-white/25">Salir</button>
