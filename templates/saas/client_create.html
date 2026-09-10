@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Nuevo cliente · {{ brand.name }}{% endblock %}
+{% block content %}
+<div class="mb-5">
+    <a href="{% url 'saas:clients' %}" class="text-sm text-gray-500 hover:underline">← Volver a clientes</a>
+    <h1 class="text-2xl font-extrabold text-gray-900 mt-1">Nuevo cliente</h1>
+</div>
+
+<form method="post" action="{% url 'saas:client.create' %}" class="max-w-3xl bg-white rounded-2xl border border-black/5 p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+    {% csrf_token %}
+    <input type="text" name="first_name" placeholder="Nombre *" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+    <input type="text" name="last_name" placeholder="Apellido *" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+    <select name="document_type" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+        {% for d in doc_types %}<option value="{{ d }}">{{ d|upper }}</option>{% endfor %}
+    </select>
+    <input type="text" name="document" placeholder="Documento *" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+    <input type="email" name="email" placeholder="Correo *" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+    <input type="text" name="phone" placeholder="Teléfono" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+    <input type="password" name="password" placeholder="Contraseña *" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+    <input type="password" name="password_confirmation" placeholder="Confirmar contraseña *" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+    <select name="status" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+        {% for s in user_statuses %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+    </select>
+    <select name="subscription_plan_id" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+        <option value="">Sin plan</option>
+        {% for p in plans %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+    </select>
+    <select name="billing_status" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+        {% for b in billing_statuses %}<option value="{{ b }}">{{ b }}</option>{% endfor %}
+    </select>
+    <input type="number" name="trial_days" placeholder="Días de prueba (def. 15)" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+    <button class="md:col-span-2 rounded-xl bg-brand hover:bg-brand-dark px-5 py-3 text-sm font-semibold text-white shadow-glow">Crear cliente</button>
+</form>
+{% endblock %}

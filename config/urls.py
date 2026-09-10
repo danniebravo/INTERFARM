@@ -16,8 +16,7 @@ urlpatterns = [
     path("", include("apps.reports.urls")),
     path("", include("apps.notifications.urls")),
     path("", include("apps.saas.urls")),
-    # Los demás módulos se irán conectando por fases (facturación cliente Wompi):
-    # ...
+    path("", include("apps.billing.urls")),
 ]
 
 # Servir archivos subidos (fotos de animales) en desarrollo.

@@ -5,11 +5,11 @@ configuración global (Google Maps key → activa el mapa de Lotes, branding, Wh
 Wompi). Planes, facturación admin, notificaciones broadcast y auditoría: pendientes.
 """
 
-import re
-from datetime import date
+from datetime import date, timedelta
 from functools import wraps
 
 from django.conf import settings as dj_settings
+from django.utils import timezone
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
 from django.db.models import Max
@@ -19,9 +19,12 @@ from django.views.decorators.http import require_POST
 
 from apps.accounts.models import User
 from apps.animals.models import Animal
-from apps.billing.models import SubscriptionPlan
+from apps.billing.models import SubscriptionInvoice, SubscriptionPayment, SubscriptionPlan
+from apps.billing.services import generate_for_user_if_due
 from apps.tenancy.models import Farm, FarmUser
 from .models import PlatformSetting, UserActivityLog
+
+DOC_TYPES = ["cc", "ce", "nit", "passport"]
 
 BILLING_STATUSES = ["trial", "active", "past_due", "cancelled", "manual"]
 USER_STATUSES = ["active", "inactive", "suspended"]
@@ -341,3 +344,82 @@ def client_password(request, pk):
     client.save()
     messages.success(request, "Contraseña del cliente actualizada correctamente.")
     return redirect("saas:client", pk=pk)
+
+
+# --------------------------------------------------------------------------
+# Crear cliente (desbloqueado por el servicio de facturas)
+# --------------------------------------------------------------------------
+@admin_required
+def client_create(request):
+    if request.method == "POST":
+        post = request.POST
+        required = ["first_name", "last_name", "document_type", "document", "email", "password", "status", "billing_status"]
+        if any(not (post.get(k) or "").strip() for k in required):
+            messages.error(request, "Completa todos los campos obligatorios.")
+            return redirect("saas:client.create")
+        if post.get("document_type") not in DOC_TYPES or post.get("status") not in USER_STATUSES or post.get("billing_status") not in BILLING_STATUSES:
+            messages.error(request, "Valores inválidos en tipo de documento/estado.")
+            return redirect("saas:client.create")
+        pw = post.get("password")
+        if len(pw) < 8 or pw != post.get("password_confirmation"):
+            messages.error(request, "La contraseña debe tener al menos 8 caracteres y coincidir.")
+            return redirect("saas:client.create")
+        if User.objects.filter(email=post.get("email")).exists():
+            messages.error(request, "Ese correo ya está en uso.")
+            return redirect("saas:client.create")
+        if User.objects.filter(document=post.get("document")).exists():
+            messages.error(request, "Ese documento ya está en uso.")
+            return redirect("saas:client.create")
+
+        trial_days = int(post.get("trial_days")) if (post.get("trial_days") or "").isdigit() else 15
+        plan_id = post.get("subscription_plan_id")
+        user = User(
+            name=(post.get("first_name") + " " + post.get("last_name")).strip(),
+            first_name=post.get("first_name"), last_name=post.get("last_name"),
+            document_type=post.get("document_type"), document=post.get("document"),
+            phone=post.get("phone") or None, email=post.get("email"),
+            status=post.get("status"), role="client",
+            subscription_plan_id=int(plan_id) if plan_id and plan_id.isdigit() else None,
+            billing_status=post.get("billing_status"),
+            next_billing_date=post.get("next_billing_date") or None,
+            trial_ends_at=(timezone.now() + timedelta(days=trial_days)) if trial_days > 0 else None,
+        )
+        user.set_password(pw)
+        user.save()
+        try:
+            generate_for_user_if_due(user, 10)
+        except Exception:
+            pass
+        messages.success(request, "Cliente creado correctamente.")
+        return redirect("saas:client", pk=user.id)
+
+    return render(request, "saas/client_create.html", {
+        "plans": SubscriptionPlan.objects.filter(is_active=True).order_by("sort_order", "price"),
+        "doc_types": DOC_TYPES, "user_statuses": USER_STATUSES, "billing_statuses": BILLING_STATUSES,
+    })
+
+
+# --------------------------------------------------------------------------
+# Facturación admin (facturas + pagos)
+# --------------------------------------------------------------------------
+@admin_required
+def billing(request):
+    invoices = list(SubscriptionInvoice.objects.order_by("-due_date", "-id")[:200])
+    user_ids = {i.user_id for i in invoices if i.user_id}
+    users = {u.id: u for u in User.objects.filter(pk__in=user_ids)} if user_ids else {}
+    for i in invoices:
+        u = users.get(i.user_id)
+        i.client_name = (u.full_name or u.email) if u else "—"
+    payments = list(SubscriptionPayment.objects.order_by("-paid_at", "-id")[:200])
+    pu_ids = {p.user_id for p in payments if p.user_id}
+    pusers = {u.id: u for u in User.objects.filter(pk__in=pu_ids)} if pu_ids else {}
+    for p in payments:
+        u = pusers.get(p.user_id)
+        p.client_name = (u.full_name or u.email) if u else "—"
+
+    paid_total = sum(float(p.amount or 0) for p in payments if p.status == "paid")
+    pending_total = sum(float(i.amount or 0) for i in invoices if i.status in ("pending", "overdue"))
+    return render(request, "saas/billing.html", {
+        "invoices": invoices, "payments": payments,
+        "paid_total": round(paid_total, 2), "pending_total": round(pending_total, 2),
+    })
