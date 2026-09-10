@@ -53,6 +53,8 @@
                 <a href="/eventos" class="rounded-lg px-3 py-2 hover:bg-white/10 {% if '/eventos' in p %}bg-white/15{% endif %}">Eventos</a>
                 <a href="/finanzas" class="rounded-lg px-3 py-2 hover:bg-white/10 {% if '/finanzas' in p %}bg-white/15{% endif %}">Finanzas</a>
                 <a href="/reportes" class="rounded-lg px-3 py-2 hover:bg-white/10 {% if '/reportes' in p %}bg-white/15{% endif %}">Reportes</a>
+                <a href="{% url 'animals:lactation' %}" class="rounded-lg px-3 py-2 hover:bg-white/10 {% if '/lactancia' in p %}bg-white/15{% endif %}">Lactancia</a>
+                <a href="{% url 'animals:genealogy' %}" class="rounded-lg px-3 py-2 hover:bg-white/10 {% if '/genealogia' in p %}bg-white/15{% endif %}">Genealogía</a>
                 {% endwith %}
             </nav>
 
@@ -103,6 +105,9 @@
             <a href="/produccion" class="rounded-lg px-3 py-1.5 bg-white/10">Producción</a>
             <a href="/eventos" class="rounded-lg px-3 py-1.5 bg-white/10">Eventos</a>
             <a href="/finanzas" class="rounded-lg px-3 py-1.5 bg-white/10">Finanzas</a>
+            <a href="/reportes" class="rounded-lg px-3 py-1.5 bg-white/10">Reportes</a>
+            <a href="{% url 'animals:lactation' %}" class="rounded-lg px-3 py-1.5 bg-white/10">Lactancia</a>
+            <a href="{% url 'animals:genealogy' %}" class="rounded-lg px-3 py-1.5 bg-white/10">Genealogía</a>
         </nav>
     </header>
     {% endif %}

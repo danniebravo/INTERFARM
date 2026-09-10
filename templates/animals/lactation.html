@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Lactancia · {{ brand.name }}{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-extrabold text-gray-900 mb-4">Lactancia</h1>
+
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+    <div class="rounded-2xl bg-white border border-black/5 p-4"><div class="text-xs text-gray-500">En producción</div><div class="text-xl font-extrabold">{{ summary.lactating }}</div></div>
+    <div class="rounded-2xl bg-white border border-black/5 p-4"><div class="text-xs text-gray-500">Preñadas</div><div class="text-xl font-extrabold">{{ summary.pregnant }}</div></div>
+    <div class="rounded-2xl bg-white border border-black/5 p-4"><div class="text-xs text-gray-500">Promedio en leche</div><div class="text-lg font-extrabold">{{ summary.avg_label }}</div></div>
+    <div class="rounded-2xl {% if summary.alerts %}bg-amber-50 border-amber-100{% else %}bg-white border-black/5{% endif %} border p-4"><div class="text-xs text-gray-500">Alertas</div><div class="text-xl font-extrabold">{{ summary.alerts }}</div></div>
+</div>
+
+<form method="get" class="flex flex-wrap gap-3 bg-white rounded-2xl border border-black/5 p-4 mb-5 items-end">
+    <input type="text" name="search" value="{{ search }}" placeholder="Buscar hembra" class="flex-1 min-w-[180px] rounded-lg border border-black/15 px-3 py-2 text-sm">
+    <select name="filter" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+        <option value="relevant" {% if filter == 'relevant' %}selected{% endif %}>En ciclo</option>
+        <option value="lactating" {% if filter == 'lactating' %}selected{% endif %}>En producción</option>
+        <option value="pregnant" {% if filter == 'pregnant' %}selected{% endif %}>Preñadas</option>
+        <option value="alerts" {% if filter == 'alerts' %}selected{% endif %}>Con alertas</option>
+        <option value="all" {% if filter == 'all' %}selected{% endif %}>Todas</option>
+    </select>
+    <select name="sort" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+        <option value="lactation_desc" {% if sort == 'lactation_desc' %}selected{% endif %}>Más días en leche</option>
+        <option value="lactation_asc" {% if sort == 'lactation_asc' %}selected{% endif %}>Menos días en leche</option>
+        <option value="name_asc" {% if sort == 'name_asc' %}selected{% endif %}>Nombre A-Z</option>
+        <option value="calving_soon" {% if sort == 'calving_soon' %}selected{% endif %}>Parto próximo</option>
+    </select>
+    <button class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white">Filtrar</button>
+</form>
+
+<div class="bg-white rounded-2xl border border-black/5 p-5 mb-6 overflow-x-auto">
+    <table class="w-full text-sm min-w-[720px]">
+        <thead><tr class="text-left text-gray-500 border-b border-black/10"><th class="py-2">Animal</th><th>Estado</th><th>Días en leche</th><th>Último parto</th><th>Parto probable</th><th>Alertas</th><th></th></tr></thead>
+        <tbody>
+        {% for r in rows %}
+            <tr class="border-b border-black/5 align-top">
+                <td class="py-2 font-semibold"><a href="{% url 'animals:show' r.animal.id %}" class="hover:underline">{{ r.name }}</a>{% if r.tag %} <span class="text-gray-400 text-xs">{{ r.tag }}</span>{% endif %}</td>
+                <td>{{ r.state|default:"—" }}</td>
+                <td>{{ r.milk_duration|default:"—" }}</td>
+                <td>{{ r.last_calving|date:'d M Y'|default:"—" }}</td>
+                <td>{{ r.expected_calving|date:'d M Y'|default:"—" }}</td>
+                <td>{% for al in r.alerts %}<span class="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold {% if al.tone == 'red' %}bg-red-100 text-red-800{% else %}bg-amber-100 text-amber-800{% endif %} mr-1 mb-1">{{ al.label }}</span>{% empty %}—{% endfor %}</td>
+                <td class="text-right whitespace-nowrap">
+                    <details>
+                        <summary class="text-xs text-brand font-semibold cursor-pointer">Acciones</summary>
+                        <div class="mt-2 space-y-2 text-left">
+                            <form method="post" action="{% url 'animals:lactation.calving' r.animal.id %}" class="border border-black/5 rounded-lg p-2">
+                                {% csrf_token %}
+                                <div class="text-[11px] font-bold text-gray-600 mb-1">Registrar parto</div>
+                                <input type="date" name="calving_date" value="{{ today }}" class="w-full rounded border border-black/15 px-2 py-1 text-xs mb-1">
+                                <label class="flex items-center gap-1 text-[11px]"><input type="checkbox" name="register_calf" value="1"> Registrar cría</label>
+                                <div class="grid grid-cols-2 gap-1 mt-1">
+                                    <select name="calf_sex" class="rounded border border-black/15 px-1 py-1 text-xs"><option value="hembra">Hembra</option><option value="macho">Macho</option></select>
+                                    <input type="text" name="calf_ear_tag" placeholder="Arete cría" class="rounded border border-black/15 px-1 py-1 text-xs">
+                                    <input type="text" name="calf_name" placeholder="Nombre cría" class="col-span-2 rounded border border-black/15 px-1 py-1 text-xs">
+                                </div>
+                                <button class="mt-1 rounded bg-brand px-2 py-1 text-xs font-semibold text-white">Guardar parto</button>
+                            </form>
+                            <form method="post" action="{% url 'animals:lactation.dry-off' r.animal.id %}" class="flex items-center gap-1">
+                                {% csrf_token %}
+                                <input type="date" name="dry_off_date" value="{{ today }}" class="rounded border border-black/15 px-2 py-1 text-xs">
+                                <button class="rounded bg-gray-900 px-2 py-1 text-xs font-semibold text-white">Confirmar secado</button>
+                            </form>
+                        </div>
+                    </details>
+                </td>
+            </tr>
+        {% empty %}<tr><td colspan="7" class="py-6 text-center text-gray-400">No hay hembras que coincidan.</td></tr>{% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if young_stock %}
+<div class="bg-white rounded-2xl border border-black/5 p-5">
+    <h2 class="font-bold text-gray-800 mb-3">Hato joven (fuera de ciclo)</h2>
+    {% for stage, items in young_stock.items %}
+    <div class="mb-3">
+        <div class="text-sm font-semibold text-gray-700 mb-1">{{ stage }} ({{ items|length }})</div>
+        <div class="flex flex-wrap gap-2">
+            {% for it in items %}<span class="rounded-full bg-gray-100 px-3 py-1 text-xs">{{ it.name }} · {{ it.sex }}{% if it.age %} · {{ it.age }}{% endif %}</span>{% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

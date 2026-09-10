@@ -1,10 +1,15 @@
 from django.urls import path
 
 from . import views
+from . import extra_views
 
 app_name = "animals"
 
 urlpatterns = [
+    path("lactancia", extra_views.lactation_index, name="lactation"),
+    path("lactancia/<int:pk>/secado", extra_views.lactation_dry_off, name="lactation.dry-off"),
+    path("lactancia/<int:pk>/parto", extra_views.lactation_calving, name="lactation.calving"),
+    path("genealogia", extra_views.genealogy_index, name="genealogy"),
     path("animales", views.index, name="index"),
     path("animales/crear", views.create, name="create"),
     path("animales/nuevo", views.store, name="store"),

@@ -1,0 +1,13 @@
+{# Nodo recursivo del árbol genealógico. Espera: node #}
+<li>
+    <div class="inline-flex items-center gap-2 rounded-lg border border-black/10 bg-white px-3 py-1.5 text-sm">
+        {% if node.role %}<span class="text-[10px] font-bold uppercase text-gray-400">{{ node.role }}</span>{% endif %}
+        <span>{% if node.sex == 'hembra' %}🐄{% elif node.sex == 'macho' %}🐂{% endif %}</span>
+        {% if node.id %}<a href="{% url 'animals:show' node.id %}" class="font-semibold hover:underline">{{ node.name }}</a>{% else %}<span class="font-semibold text-gray-600">{{ node.name }}</span>{% endif %}
+    </div>
+    {% if node.children %}
+    <ul class="ml-6 mt-2 space-y-2 border-l border-black/10 pl-4">
+        {% for child in node.children %}{% include "animals/_tree.html" with node=child %}{% endfor %}
+    </ul>
+    {% endif %}
+</li>

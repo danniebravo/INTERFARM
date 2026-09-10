@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Genealogía · {{ brand.name }}{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-extrabold text-gray-900 mb-4">Genealogía</h1>
+
+<form method="get" class="bg-white rounded-2xl border border-black/5 p-4 mb-5 flex flex-wrap gap-3 items-end">
+    <label class="text-sm font-semibold flex-1 min-w-[220px]">Animal
+        <select name="animal" onchange="this.form.submit()" class="mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm">
+            <option value="">Selecciona un animal…</option>
+            {% for a in animals %}<option value="{{ a.id }}" {% if selected and selected.id == a.id %}selected{% endif %}>{{ a.name|default:a.ear_tag|default:a.id }}{% if a.ear_tag %} ({{ a.ear_tag }}){% endif %}</option>{% endfor %}
+        </select>
+    </label>
+</form>
+
+{% if selected %}
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+    <div class="bg-white rounded-2xl border border-black/5 p-5">
+        <h2 class="font-bold text-gray-800 mb-3">Ascendencia (padres / abuelos)</h2>
+        <ul class="space-y-2">{% include "animals/_tree.html" with node=ancestors %}</ul>
+    </div>
+    <div class="bg-white rounded-2xl border border-black/5 p-5">
+        <h2 class="font-bold text-gray-800 mb-3">Descendencia (crías)</h2>
+        <ul class="space-y-2">{% include "animals/_tree.html" with node=descendants %}</ul>
+    </div>
+</div>
+{% else %}
+<div class="rounded-2xl border border-dashed border-black/15 bg-white p-10 text-center text-gray-500">Selecciona un animal para ver su árbol genealógico.</div>
+{% endif %}
+{% endblock %}
