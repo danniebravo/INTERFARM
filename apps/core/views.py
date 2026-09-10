@@ -100,3 +100,15 @@ def manifest(request):
     if not path.exists():
         raise Http404()
     return FileResponse(open(path, "rb"), content_type="application/manifest+json")
+
+
+@login_required(login_url="accounts:login")
+def suspended(request):
+    """Página de cuenta suspendida (cliente con estado 'suspended')."""
+    user = request.user
+    if not user.is_suspended():
+        return redirect("core:home")
+    from apps.billing.models import SubscriptionInvoice
+    invoices = SubscriptionInvoice.objects.filter(
+        user_id=user.id, status__in=["pending", "overdue"]).order_by("-due_date")[:5]
+    return render(request, "billing/suspended.html", {"account": user, "invoices": invoices})

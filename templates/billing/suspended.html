@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Cuenta suspendida · {{ brand.name }}{% endblock %}
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <div class="rounded-2xl border border-amber-200 bg-amber-50 p-6 mb-5">
+        <h1 class="text-2xl font-extrabold text-amber-900">Tu cuenta está suspendida</h1>
+        <p class="text-sm text-amber-800 mt-2">
+            Hola {{ account.short_name }}, tu acceso está temporalmente suspendido, probablemente por
+            una factura pendiente. Regulariza tu pago para reactivar el servicio.
+        </p>
+        <div class="mt-4 flex flex-wrap gap-2">
+            <a href="{% url 'billing:index' %}" class="rounded-xl bg-brand hover:bg-brand-dark px-4 py-2.5 text-sm font-semibold text-white">Ir a mi facturación</a>
+            <form method="post" action="{% url 'accounts:logout' %}">{% csrf_token %}<button class="rounded-xl border border-black/10 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700">Cerrar sesión</button></form>
+        </div>
+    </div>
+
+    {% if invoices %}
+    <div class="bg-white rounded-2xl border border-black/5 p-5">
+        <h2 class="font-bold text-gray-800 mb-3">Facturas pendientes</h2>
+        <table class="w-full text-sm">
+            <thead><tr class="text-left text-gray-500 border-b border-black/10"><th class="py-2">Número</th><th>Vencimiento</th><th class="text-right">Valor</th><th>Estado</th></tr></thead>
+            <tbody>
+            {% for i in invoices %}
+                <tr class="border-b border-black/5">
+                    <td class="py-2"><a href="{% url 'billing:invoice' i.id %}" class="text-brand font-semibold hover:underline">{{ i.invoice_number }}</a></td>
+                    <td>{{ i.due_date|date:'d M Y' }}</td>
+                    <td class="text-right font-semibold">{{ i.currency }} ${{ i.amount|floatformat:0 }}</td>
+                    <td>{{ i.get_status_display }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

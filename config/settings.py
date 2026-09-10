@@ -75,6 +75,8 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     # Resuelve la finca activa (multi-tenant) e impersonation admin.
     "apps.tenancy.middleware.CurrentFarmMiddleware",
+    # Bloquea clientes suspendidos (solo facturación/notificaciones/logout).
+    "apps.core.middleware.SuspendedClientMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"

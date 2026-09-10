@@ -29,14 +29,34 @@
     </table>
 </div>
 
+<div class="bg-white rounded-2xl border border-black/5 p-5 mb-5">
+    <h2 class="font-bold text-gray-800 mb-3">Registrar pago manual</h2>
+    <form method="post" action="{% url 'saas:payments.store' %}" class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {% csrf_token %}
+        <select name="user_id" class="rounded-lg border border-black/15 px-3 py-2 text-sm md:col-span-2">
+            <option value="">Cliente…</option>
+            {% for cl in clients %}<option value="{{ cl.id }}">{{ cl.full_name|default:cl.email }}</option>{% endfor %}
+        </select>
+        <input type="number" step="0.01" name="amount" placeholder="Monto" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+        <input type="text" name="currency" value="COP" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+        <input type="date" name="paid_at" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+        <select name="status" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+            <option value="paid">Pagado</option><option value="pending">Pendiente</option><option value="failed">Fallido</option><option value="refunded">Reembolsado</option>
+        </select>
+        <input type="text" name="subscription_invoice_id" placeholder="ID factura (opcional)" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+        <input type="text" name="reference" placeholder="Referencia" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+        <button class="md:col-span-4 rounded-xl bg-brand hover:bg-brand-dark px-4 py-2.5 text-sm font-semibold text-white">Registrar pago</button>
+    </form>
+</div>
+
 <div class="bg-white rounded-2xl border border-black/5 p-5 overflow-x-auto">
     <h2 class="font-bold text-gray-800 mb-3">Pagos</h2>
     <table class="w-full text-sm min-w-[560px]">
-        <thead><tr class="text-left text-gray-500 border-b border-black/10"><th class="py-2">Fecha</th><th>Cliente</th><th class="text-right">Valor</th><th>Proveedor</th><th>Estado</th></tr></thead>
+        <thead><tr class="text-left text-gray-500 border-b border-black/10"><th class="py-2">Fecha</th><th>Cliente</th><th class="text-right">Valor</th><th>Proveedor</th><th>Estado</th><th></th></tr></thead>
         <tbody>
         {% for p in payments %}
-            <tr class="border-b border-black/5"><td class="py-2">{{ p.paid_at|date:'d M Y'|default:'—' }}</td><td>{{ p.client_name }}</td><td class="text-right font-semibold">{{ p.currency }} ${{ p.amount|floatformat:0 }}</td><td>{{ p.provider|default:'—' }}</td><td>{{ p.status }}</td></tr>
-        {% empty %}<tr><td colspan="5" class="py-4 text-gray-400">Sin pagos.</td></tr>{% endfor %}
+            <tr class="border-b border-black/5"><td class="py-2">{{ p.paid_at|date:'d M Y'|default:'—' }}</td><td>{{ p.client_name }}</td><td class="text-right font-semibold">{{ p.currency }} ${{ p.amount|floatformat:0 }}</td><td>{{ p.provider|default:'—' }}</td><td>{{ p.status }}</td><td class="text-right"><form method="post" action="{% url 'saas:payments.destroy' p.id %}" onsubmit="return confirm('¿Eliminar pago?');">{% csrf_token %}<button class="text-red-600 text-xs">✕</button></form></td></tr>
+        {% empty %}<tr><td colspan="6" class="py-4 text-gray-400">Sin pagos.</td></tr>{% endfor %}
         </tbody>
     </table>
 </div>

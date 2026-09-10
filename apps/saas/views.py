@@ -422,7 +422,49 @@ def billing(request):
     return render(request, "saas/billing.html", {
         "invoices": invoices, "payments": payments,
         "paid_total": round(paid_total, 2), "pending_total": round(pending_total, 2),
+        "clients": _client_qs().order_by("first_name", "email"),
     })
+
+
+@admin_required
+@require_POST
+def store_payment(request):
+    post = request.POST
+    client = User.objects.filter(pk=post.get("user_id")).first()
+    if not client:
+        messages.error(request, "Cliente inválido.")
+        return redirect("saas:billing")
+    try:
+        amount = float(post.get("amount"))
+    except (TypeError, ValueError):
+        messages.error(request, "Monto inválido.")
+        return redirect("saas:billing")
+    status = post.get("status") if post.get("status") in ("paid", "pending", "failed", "refunded") else "paid"
+    plan = SubscriptionPlan.objects.filter(pk=client.subscription_plan_id).first() if client.subscription_plan_id else None
+    inv_id = post.get("subscription_invoice_id")
+    invoice = SubscriptionInvoice.objects.filter(user_id=client.id, id=inv_id).first() if (inv_id and inv_id.isdigit()) else None
+    pay = SubscriptionPayment.objects.create(
+        user_id=client.id, subscription_plan_id=plan.id if plan else None,
+        subscription_invoice_id=invoice.id if invoice else None, amount=amount,
+        currency=(post.get("currency") or "COP").upper(), billing_period=plan.billing_period if plan else None,
+        paid_at=post.get("paid_at") or None, status=status, provider="manual",
+        payment_method=post.get("payment_method") or "manual", reference=post.get("reference") or None,
+        notes=post.get("notes") or None)
+    if status == "paid" and invoice:
+        invoice.status = "paid"
+        invoice.save(update_fields=["status"])
+        client.billing_status = "active"
+        client.save(update_fields=["billing_status"])
+    messages.success(request, "Pago registrado correctamente.")
+    return redirect("saas:billing")
+
+
+@admin_required
+@require_POST
+def destroy_payment(request, pk):
+    get_object_or_404(SubscriptionPayment, pk=pk).delete()
+    messages.success(request, "Pago eliminado correctamente.")
+    return redirect("saas:billing")
 
 
 # --------------------------------------------------------------------------

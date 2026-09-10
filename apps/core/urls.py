@@ -8,4 +8,5 @@ urlpatterns = [
     path("", views.home, name="home"),
     path("service-worker.js", views.service_worker, name="service-worker"),
     path("manifest.webmanifest", views.manifest, name="manifest"),
+    path("cuenta-suspendida", views.suspended, name="suspended"),
 ]
