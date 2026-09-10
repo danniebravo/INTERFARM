@@ -1,0 +1,9 @@
+Django>=5.1,<5.3
+PyMySQL>=1.1
+python-dotenv>=1.0
+bcrypt>=4.1
+Pillow>=10.3
+reportlab>=4.1
+pywebpush>=2.0
+requests>=2.31
+gunicorn>=22.0

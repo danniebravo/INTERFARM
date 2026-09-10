@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Inicio · {{ brand.name }}{% endblock %}
+{% block content %}
+<div class="card">
+    <h1 style="margin-top:0;">Hola, {{ request.user.full_name }}</h1>
+    <p>Rol: <strong>{{ request.user.role }}</strong> · Estado: {{ request.user.display_status }}</p>
+    {% if admin_landing %}
+        <p>Cuenta administrativa. El panel SaaS se conecta en la Fase 4.</p>
+    {% else %}
+        <p>Finca activa:
+            <strong>{% if current_farm %}{{ current_farm.name }}{% else %}—{% endif %}</strong>
+        </p>
+        <p>Tus fincas:</p>
+        <ul>
+            {% for f in request.user.farms %}
+                <li>{{ f.name }} {% if f.location %}· {{ f.location }}{% endif %}</li>
+            {% empty %}
+                <li>No tienes fincas todavía.</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+    <form method="post" action="{% url 'accounts:logout' %}" style="margin-top:16px;">
+        {% csrf_token %}<button class="btn" type="submit">Cerrar sesión</button>
+    </form>
+</div>
+{% endblock %}

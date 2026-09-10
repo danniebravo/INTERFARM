@@ -1,0 +1,22 @@
+# Entorno de desarrollo: MySQL 8 para correr InterFarm (Django) localmente.
+# Uso:
+#   docker compose up -d
+#   # cargar el dump real del servidor (privado, no versionado):
+#   docker compose exec -T db mysql -uinterfarm -pinterfarm somosint_ganado_db < _data_backup/interfarm_full.sql
+services:
+  db:
+    image: mysql:8.0
+    container_name: interfarm_mysql
+    environment:
+      MYSQL_DATABASE: somosint_ganado_db
+      MYSQL_USER: interfarm
+      MYSQL_PASSWORD: interfarm
+      MYSQL_ROOT_PASSWORD: root
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "3306:3306"
+    volumes:
+      - interfarm_mysql_data:/var/lib/mysql
+
+volumes:
+  interfarm_mysql_data:

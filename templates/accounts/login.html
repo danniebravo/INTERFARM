@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Iniciar sesión · {{ brand.name }}{% endblock %}
+{% block content %}
+<div class="card" style="max-width:420px;margin:40px auto;">
+    <h1 style="margin-top:0;">Iniciar sesión</h1>
+    {% if error %}<p style="color:#b91c1c;font-weight:600;">{{ error }}</p>{% endif %}
+    <form method="post" action="{% url 'accounts:login' %}">
+        {% csrf_token %}
+        <label>Correo
+            <input type="email" name="email" value="{{ email|default:'' }}" required autofocus>
+        </label>
+        <label>Contraseña
+            <input type="password" name="password" required>
+        </label>
+        <div style="margin-top:16px;">
+            <button class="btn" type="submit">Entrar</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

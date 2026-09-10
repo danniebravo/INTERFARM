@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Crear finca · {{ brand.name }}{% endblock %}
+{% block content %}
+<div class="card" style="max-width:520px;margin:24px auto;">
+    <h1 style="margin-top:0;">Crea tu finca</h1>
+    <p>Para empezar a operar necesitas al menos una finca.</p>
+    <form method="post" action="{% url 'tenancy:farm_create' %}">
+        {% csrf_token %}
+        <label>Nombre <input name="name" required></label>
+        <label>Ubicación <input name="location"></label>
+        <label>Hectáreas <input name="hectares" type="number" step="0.01"></label>
+        <label>Tipo de producción
+            <select name="production_type" style="width:100%;padding:10px;border-radius:10px;margin-top:4px;">
+                {% for value, label in production_types %}
+                    <option value="{{ value }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>Descripción <input name="description"></label>
+        <div style="margin-top:16px;"><button class="btn" type="submit">Crear finca</button></div>
+    </form>
+</div>
+{% endblock %}
