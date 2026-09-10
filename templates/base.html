@@ -61,6 +61,21 @@
                     <span class="hidden sm:inline-flex items-center gap-1 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold">
                         🏠 {{ current_farm.name }}
                     </span>
+
+                    {# Campana de notificaciones #}
+                    <div class="relative" id="notifWrap">
+                        <button type="button" id="notifBell" class="relative rounded-lg bg-white/15 px-3 py-2 text-sm hover:bg-white/25" title="Notificaciones">
+                            🔔
+                            <span id="notifCount" class="hidden absolute -top-1 -right-1 min-w-[18px] rounded-full bg-red-500 px-1 text-[10px] font-bold leading-[18px] text-white text-center"></span>
+                        </button>
+                        <div id="notifPanel" class="hidden absolute right-0 mt-2 w-80 max-h-[70vh] overflow-auto rounded-2xl border border-black/10 bg-white text-gray-900 shadow-xl z-40">
+                            <div class="flex items-center justify-between px-4 py-2 border-b border-black/5">
+                                <span class="font-bold text-sm">Notificaciones</span>
+                                <button type="button" id="notifMarkAll" class="text-xs text-brand font-semibold">Marcar todas</button>
+                            </div>
+                            <div id="notifList" class="divide-y divide-black/5"></div>
+                        </div>
+                    </div>
                 {% endif %}
                 {% if is_impersonating %}
                     <span class="rounded-full bg-amber-400 px-3 py-1 text-xs font-bold text-amber-950">Viendo como cliente</span>
@@ -100,6 +115,53 @@
         {% block content %}{% endblock %}
     </main>
 
+    {% if user.is_authenticated and current_farm %}
+    <script>
+    (function () {
+        var CSRF = "{{ csrf_token }}";
+        var bell = document.getElementById('notifBell'), panel = document.getElementById('notifPanel'),
+            countEl = document.getElementById('notifCount'), listEl = document.getElementById('notifList');
+        if (!bell) return;
+        var URLS = {
+            sync: "{% url 'notifications:sync' %}",
+            markAll: "{% url 'notifications:mark-all-read' %}",
+            read: function (id) { return "/notificaciones/" + id + "/leer"; },
+            dismiss: function (id) { return "/notificaciones/" + id + "/descartar"; }
+        };
+        function post(url) {
+            return fetch(url, { method: 'POST', headers: { 'X-CSRFToken': CSRF, 'X-Requested-With': 'XMLHttpRequest' } }).then(function (r) { return r.json(); });
+        }
+        var LEVEL = { critical: '#dc2626', high: '#dc2626', medium: '#d97706', low: '#0891b2' };
+        function render(data) {
+            var n = data.unread_count || 0;
+            if (n > 0) { countEl.textContent = n > 99 ? '99+' : n; countEl.classList.remove('hidden'); }
+            else { countEl.classList.add('hidden'); }
+            listEl.innerHTML = '';
+            (data.notifications || []).forEach(function (it) {
+                var row = document.createElement('div');
+                row.className = 'px-4 py-2 flex gap-2 items-start';
+                row.innerHTML = '<span style="background:' + (LEVEL[it.level] || '#166534') + '" class="mt-1 h-2.5 w-2.5 rounded-full shrink-0"></span>'
+                    + '<div class="min-w-0 flex-1"><div class="text-sm font-semibold truncate">' + it.title + '</div>'
+                    + '<div class="text-xs text-gray-500">' + (it.message || '') + '</div></div>';
+                var x = document.createElement('button');
+                x.className = 'text-xs text-gray-400 hover:text-red-600'; x.textContent = '✕';
+                x.onclick = function () { post(URLS.dismiss(it.id)).then(render); };
+                row.appendChild(x);
+                listEl.appendChild(row);
+            });
+            if (!(data.notifications || []).length) {
+                listEl.innerHTML = '<div class="px-4 py-6 text-center text-sm text-gray-400">Sin notificaciones.</div>';
+            }
+        }
+        bell.addEventListener('click', function () { panel.classList.toggle('hidden'); });
+        document.addEventListener('click', function (e) {
+            if (!document.getElementById('notifWrap').contains(e.target)) panel.classList.add('hidden');
+        });
+        document.getElementById('notifMarkAll').addEventListener('click', function () { post(URLS.markAll).then(render); });
+        post(URLS.sync).then(render).catch(function () {});
+    })();
+    </script>
+    {% endif %}
     {% block scripts %}{% endblock %}
 </body>
 </html>
