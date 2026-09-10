@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Formas de pago · {{ brand.name }}{% endblock %}
+{% block content %}
+<div class="mb-4"><a href="{% url 'billing:index' %}" class="text-sm text-gray-500 hover:underline">← Volver a mi facturación</a></div>
+<h1 class="text-2xl font-extrabold text-gray-900 mb-5">Formas de pago</h1>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+    <div class="bg-white rounded-2xl border border-black/5 p-5">
+        <h2 class="font-bold text-gray-800 mb-3">Tarjetas guardadas</h2>
+        <div class="space-y-2">
+            {% for m in methods %}
+            <div class="flex items-center gap-3 border-b border-black/5 pb-2">
+                <div class="flex-1">
+                    <div class="text-sm font-semibold">{{ m.brand }} •••• {{ m.last_four }} {% if m.is_default %}<span class="ml-1 rounded bg-green-100 text-green-800 px-1.5 py-0.5 text-[10px]">Principal</span>{% endif %}</div>
+                    <div class="text-xs text-gray-500">{{ m.holder_name }} · vence {{ m.expiry_month }}/{{ m.expiry_year }}</div>
+                </div>
+                {% if not m.is_default %}<form method="post" action="{% url 'billing:payment-methods.default' m.id %}">{% csrf_token %}<button class="text-xs text-brand font-semibold">Hacer principal</button></form>{% endif %}
+                <form method="post" action="{% url 'billing:payment-methods.destroy' m.id %}" onsubmit="return confirm('¿Desactivar esta forma de pago?');">{% csrf_token %}<button class="text-xs text-red-600">✕</button></form>
+            </div>
+            {% empty %}<p class="text-sm text-gray-400">No tienes formas de pago guardadas.</p>{% endfor %}
+        </div>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-black/5 p-5">
+        <h2 class="font-bold text-gray-800 mb-3">Agregar tarjeta</h2>
+        <form method="post" action="{% url 'billing:payment-methods.store' %}" class="grid grid-cols-2 gap-3">
+            {% csrf_token %}
+            <input type="text" name="holder_name" placeholder="Titular" class="col-span-2 rounded-lg border border-black/15 px-3 py-2 text-sm">
+            <input type="text" name="brand" placeholder="Marca (Visa, Mastercard…)" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+            <input type="text" name="last_four" placeholder="Últimos 4 dígitos" maxlength="4" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+            <input type="number" name="expiry_month" placeholder="Mes (1-12)" min="1" max="12" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+            <input type="number" name="expiry_year" placeholder="Año" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+            <label class="col-span-2 flex items-center gap-2 text-sm"><input type="checkbox" name="is_default" value="1"> Marcar como principal</label>
+            <button class="col-span-2 rounded-xl bg-brand hover:bg-brand-dark px-4 py-2.5 text-sm font-semibold text-white">Guardar tarjeta</button>
+        </form>
+        <p class="text-[11px] text-gray-400 mt-2">Solo se guardan los últimos 4 dígitos y la marca (referencia); el cobro real se hace por Wompi.</p>
+    </div>
+</div>
+{% endblock %}

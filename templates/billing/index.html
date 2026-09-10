@@ -1,7 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Mi facturación · {{ brand.name }}{% endblock %}
 {% block content %}
-<h1 class="text-2xl font-extrabold text-gray-900 mb-5">Mi facturación</h1>
+<div class="flex flex-wrap items-center justify-between gap-3 mb-5">
+    <h1 class="text-2xl font-extrabold text-gray-900">Mi facturación</h1>
+    <a href="{% url 'billing:payment-methods' %}" class="rounded-xl border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">Formas de pago</a>
+</div>
 
 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
     <div class="rounded-2xl bg-white border border-black/5 p-5"><div class="text-xs text-gray-500">Plan actual</div><div class="text-lg font-extrabold">{{ current_plan.name|default:"Sin plan" }}</div></div>
@@ -16,7 +19,7 @@
         <tbody>
         {% for i in invoices %}
             <tr class="border-b border-black/5">
-                <td class="py-2">{{ i.invoice_number }}</td>
+                <td class="py-2"><a href="{% url 'billing:invoice' i.id %}" class="text-brand font-semibold hover:underline">{{ i.invoice_number }}</a></td>
                 <td>{{ i.plan_name }}</td>
                 <td>{{ i.due_date|date:'d M Y' }}</td>
                 <td class="text-right font-semibold">{{ i.currency }} ${{ i.amount|floatformat:0 }}</td>

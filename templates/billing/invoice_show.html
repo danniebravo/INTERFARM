@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Factura {{ invoice.invoice_number }} · {{ brand.name }}{% endblock %}
+{% block content %}
+<div class="mb-4 flex items-center justify-between">
+    <a href="{% url 'billing:index' %}" class="text-sm text-gray-500 hover:underline">← Volver a mi facturación</a>
+    <a href="{% url 'billing:invoice.pdf' invoice.id %}" class="rounded-xl border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">Descargar PDF</a>
+</div>
+
+<div class="max-w-2xl bg-white rounded-2xl border border-black/5 p-6">
+    <div class="flex items-center justify-between">
+        <h1 class="text-2xl font-extrabold text-gray-900">{{ invoice.invoice_number }}</h1>
+        <span class="rounded-full px-3 py-1 text-xs font-semibold
+            {% if invoice.status == 'paid' %}bg-green-100 text-green-800{% elif invoice.status == 'overdue' %}bg-red-100 text-red-800{% elif invoice.status == 'pending' %}bg-amber-100 text-amber-800{% else %}bg-gray-200 text-gray-600{% endif %}">{{ invoice.get_status_display }}</span>
+    </div>
+    <div class="mt-4 grid grid-cols-2 gap-3 text-sm">
+        <div><span class="text-gray-500">Plan</span><div class="font-semibold">{{ plan.name|default:invoice.billing_period|default:"—" }}</div></div>
+        <div><span class="text-gray-500">Valor</span><div class="font-semibold">{{ invoice.currency }} ${{ invoice.amount|floatformat:0 }}</div></div>
+        <div><span class="text-gray-500">Emitida</span><div>{{ invoice.issue_date|date:'d M Y'|default:'—' }}</div></div>
+        <div><span class="text-gray-500">Vence</span><div>{{ invoice.due_date|date:'d M Y'|default:'—' }}</div></div>
+        {% if invoice.period_start %}<div class="col-span-2"><span class="text-gray-500">Período</span><div>{{ invoice.period_start|date:'d M Y' }} → {{ invoice.period_end|date:'d M Y' }}</div></div>{% endif %}
+    </div>
+
+    {% if invoice.status == 'pending' or invoice.status == 'overdue' %}
+    <div class="mt-5">
+        {% if wompi_ready %}
+        <form method="post" action="{% url 'billing:checkout' invoice.id %}">{% csrf_token %}<button class="rounded-xl bg-brand hover:bg-brand-dark px-5 py-2.5 text-sm font-semibold text-white shadow-glow">Pagar ahora</button></form>
+        {% else %}<p class="text-sm text-gray-400">El pago en línea se habilita cuando el administrador configura Wompi.</p>{% endif %}
+    </div>
+    {% endif %}
+
+    {% if payments %}
+    <div class="mt-6">
+        <h2 class="font-bold text-gray-800 mb-2">Pagos de esta factura</h2>
+        <table class="w-full text-sm">
+            <thead><tr class="text-left text-gray-500 border-b border-black/10"><th class="py-1">Fecha</th><th class="text-right">Valor</th><th>Estado</th></tr></thead>
+            <tbody>{% for p in payments %}<tr class="border-b border-black/5"><td class="py-1">{{ p.paid_at|date:'d M Y'|default:'—' }}</td><td class="text-right">{{ p.currency }} ${{ p.amount|floatformat:0 }}</td><td>{{ p.status }}</td></tr>{% endfor %}</tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

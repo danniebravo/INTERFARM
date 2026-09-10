@@ -8,7 +8,8 @@ import json
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponseRedirect, JsonResponse
+from django.core.exceptions import PermissionDenied
+from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
@@ -95,3 +96,106 @@ def wompi_webhook(request):
         if isinstance(tx, dict):
             wompi.apply_transaction(tx, "webhook")
     return JsonResponse({"ok": True})
+
+
+# --------------------------------------------------------------------------
+# Detalle de factura + PDF
+# --------------------------------------------------------------------------
+def _own_invoice(request, pk):
+    inv = get_object_or_404(SubscriptionInvoice, pk=pk)
+    if int(inv.user_id or 0) != int(_user(request).id):
+        raise PermissionDenied()
+    return inv
+
+
+@login_required
+def invoice_show(request, pk):
+    inv = _own_invoice(request, pk)
+    plan = SubscriptionPlan.objects.filter(pk=inv.subscription_plan_id).first() if inv.subscription_plan_id else None
+    payments = SubscriptionPayment.objects.filter(subscription_invoice_id=inv.id).order_by("-paid_at", "-id")
+    return render(request, "billing/invoice_show.html", {
+        "invoice": inv, "plan": plan, "payments": payments, "wompi_ready": wompi.is_configured(),
+    })
+
+
+@login_required
+def download_invoice(request, pk):
+    from . import pdf
+    inv = _own_invoice(request, pk)
+    plan = SubscriptionPlan.objects.filter(pk=inv.subscription_plan_id).first() if inv.subscription_plan_id else None
+    data = pdf.render_invoice_pdf(inv, _user(request), plan)
+    resp = HttpResponse(data, content_type="application/pdf")
+    resp["Content-Disposition"] = f'attachment; filename="{inv.invoice_number or "factura"}.pdf"'
+    return resp
+
+
+# --------------------------------------------------------------------------
+# Formas de pago
+# --------------------------------------------------------------------------
+@login_required
+def payment_methods(request):
+    from .models import SubscriptionPaymentMethod
+    methods = SubscriptionPaymentMethod.objects.filter(user_id=_user(request).id, status="active") \
+        .order_by("-is_default", "-id")
+    return render(request, "billing/payment_methods.html", {"methods": methods})
+
+
+@login_required
+@require_POST
+def store_payment_method(request):
+    from datetime import date
+    from .models import SubscriptionPaymentMethod
+    user = _user(request)
+    post = request.POST
+    last4 = (post.get("last_four") or "").strip()
+    if not (post.get("holder_name") and post.get("brand") and last4.isdigit() and len(last4) == 4):
+        messages.error(request, "Completa titular, marca y últimos 4 dígitos.")
+        return redirect("billing:payment-methods")
+    try:
+        em, ey = int(post.get("expiry_month")), int(post.get("expiry_year"))
+    except (TypeError, ValueError):
+        messages.error(request, "Vencimiento inválido.")
+        return redirect("billing:payment-methods")
+    if not (1 <= em <= 12) or ey < date.today().year:
+        messages.error(request, "Vencimiento inválido.")
+        return redirect("billing:payment-methods")
+
+    make_default = post.get("is_default") in ("1", "on", "true") or \
+        not SubscriptionPaymentMethod.objects.filter(user_id=user.id, status="active").exists()
+    if make_default:
+        SubscriptionPaymentMethod.objects.filter(user_id=user.id).update(is_default=False)
+    SubscriptionPaymentMethod.objects.create(
+        user_id=user.id, provider="wompi", holder_name=post.get("holder_name"),
+        brand=post.get("brand"), last_four=last4, expiry_month=em, expiry_year=ey,
+        is_default=make_default, status="active")
+    messages.success(request, "Forma de pago vinculada correctamente.")
+    return redirect("billing:payment-methods")
+
+
+@login_required
+@require_POST
+def default_payment_method(request, pk):
+    from .models import SubscriptionPaymentMethod
+    m = get_object_or_404(SubscriptionPaymentMethod, pk=pk)
+    if int(m.user_id) != int(_user(request).id):
+        raise PermissionDenied()
+    SubscriptionPaymentMethod.objects.filter(user_id=m.user_id).update(is_default=False)
+    m.is_default = True
+    m.status = "active"
+    m.save(update_fields=["is_default", "status"])
+    messages.success(request, "Forma de pago principal actualizada.")
+    return redirect("billing:payment-methods")
+
+
+@login_required
+@require_POST
+def destroy_payment_method(request, pk):
+    from .models import SubscriptionPaymentMethod
+    m = get_object_or_404(SubscriptionPaymentMethod, pk=pk)
+    if int(m.user_id) != int(_user(request).id):
+        raise PermissionDenied()
+    m.status = "inactive"
+    m.is_default = False
+    m.save(update_fields=["status", "is_default"])
+    messages.success(request, "Forma de pago desactivada.")
+    return redirect("billing:payment-methods")
