@@ -333,10 +333,9 @@ class Animal extends Model
             return false;
         }
 
-        if ($this->isFemale()) {
-            return $this->canRegisterMilkProduction();
-        }
-
+        // El peso (producción de carne) puede registrarse en cualquier animal activo,
+        // incluidas hembras/terneras sin partos. La leche sigue gobernada aparte por
+        // canRegisterMilkProduction().
         return true;
     }
 
