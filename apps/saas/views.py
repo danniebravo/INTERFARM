@@ -5,20 +5,27 @@ configuración global (Google Maps key → activa el mapa de Lotes, branding, Wh
 Wompi). Planes, facturación admin, notificaciones broadcast y auditoría: pendientes.
 """
 
+import re
 from datetime import date
 from functools import wraps
 
 from django.conf import settings as dj_settings
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
+from django.db.models import Max
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.text import slugify
 from django.views.decorators.http import require_POST
 
 from apps.accounts.models import User
 from apps.animals.models import Animal
 from apps.billing.models import SubscriptionPlan
 from apps.tenancy.models import Farm, FarmUser
-from .models import PlatformSetting
+from .models import PlatformSetting, UserActivityLog
+
+BILLING_STATUSES = ["trial", "active", "past_due", "cancelled", "manual"]
+USER_STATUSES = ["active", "inactive", "suspended"]
+PLAN_PERIODS = ["monthly", "yearly", "one_time"]
 
 ADMIN_ROLES = ["admin", "super_admin", "superadmin"]
 
@@ -152,3 +159,185 @@ def update_settings(request):
 
     messages.success(request, "Configuración SaaS actualizada correctamente.")
     return redirect("saas:settings")
+
+
+# --------------------------------------------------------------------------
+# Planes
+# --------------------------------------------------------------------------
+def _parse_features(raw):
+    items = [ln.strip() for ln in (raw or "").splitlines() if ln.strip()]
+    return items or None
+
+
+def _unique_plan_slug(name):
+    base = slugify(name) or "plan"
+    slug, i = base, 1
+    while SubscriptionPlan.objects.filter(slug=slug).exists():
+        i += 1
+        slug = f"{base}-{i}"
+    return slug
+
+
+@admin_required
+def plans(request):
+    return render(request, "saas/plans.html", {
+        "plans": SubscriptionPlan.objects.order_by("sort_order", "price"),
+        "periods": PLAN_PERIODS,
+    })
+
+
+def _plan_payload(request):
+    post = request.POST
+    name = (post.get("name") or "").strip()
+    if not name:
+        return None, "El nombre del paquete es obligatorio."
+    try:
+        price = float(post.get("price"))
+    except (TypeError, ValueError):
+        return None, "El precio es obligatorio."
+    period = post.get("billing_period")
+    if period not in PLAN_PERIODS:
+        return None, "Periodo de facturación inválido."
+
+    def n(v):
+        return int(v) if v and str(v).isdigit() else None
+    return {
+        "name": name, "description": post.get("description") or None, "price": price,
+        "billing_period": period, "max_farms": n(post.get("max_farms")),
+        "max_users": n(post.get("max_users")), "max_animals": n(post.get("max_animals")),
+        "features": _parse_features(post.get("features")),
+        "is_active": post.get("is_active") in ("1", "on", "true", True),
+    }, None
+
+
+@admin_required
+@require_POST
+def store_plan(request):
+    payload, err = _plan_payload(request)
+    if err:
+        messages.error(request, err)
+        return redirect("saas:plans")
+    payload["slug"] = _unique_plan_slug(payload["name"])
+    payload["sort_order"] = (SubscriptionPlan.objects.aggregate(m=Max("sort_order"))["m"] or 0) + 1
+    SubscriptionPlan.objects.create(**payload)
+    messages.success(request, "Paquete creado correctamente.")
+    return redirect("saas:plans")
+
+
+@admin_required
+@require_POST
+def update_plan(request, pk):
+    plan = get_object_or_404(SubscriptionPlan, pk=pk)
+    payload, err = _plan_payload(request)
+    if err:
+        messages.error(request, err)
+        return redirect("saas:plans")
+    for k, v in payload.items():
+        setattr(plan, k, v)
+    plan.save()
+    messages.success(request, "Paquete actualizado correctamente.")
+    return redirect("saas:plans")
+
+
+@admin_required
+@require_POST
+def destroy_plan(request, pk):
+    get_object_or_404(SubscriptionPlan, pk=pk).delete()
+    messages.success(request, "Paquete eliminado correctamente.")
+    return redirect("saas:plans")
+
+
+# --------------------------------------------------------------------------
+# Gestión de clientes (detalle + estado/plan/contraseña/info)
+# --------------------------------------------------------------------------
+def _client_or_404(pk):
+    u = get_object_or_404(User, pk=pk)
+    if u.role in ADMIN_ROLES:
+        raise PermissionDenied()
+    return u
+
+
+@admin_required
+def client_show(request, pk):
+    client = _client_or_404(pk)
+    farms = list(client.farms())
+    farm_ids = [f.id for f in farms]
+    animals = list(Animal.objects.filter(farm_id__in=farm_ids)) if farm_ids else []
+    metrics = {
+        "farms": len(farms), "animals": len(animals),
+        "active_animals": sum(1 for a in animals if a.is_active()),
+        "female_animals": sum(1 for a in animals if a.is_female()),
+        "male_animals": sum(1 for a in animals if a.is_male()),
+    }
+    plan = SubscriptionPlan.objects.filter(pk=client.subscription_plan_id).first() if client.subscription_plan_id else None
+    activity = UserActivityLog.objects.filter(user_id=client.id).order_by("-created_at")[:60]
+    return render(request, "saas/client_show.html", {
+        "client": client, "farms": farms, "metrics": metrics, "plan": plan,
+        "plans": SubscriptionPlan.objects.filter(is_active=True).order_by("sort_order", "price"),
+        "activity": activity, "billing_statuses": BILLING_STATUSES, "user_statuses": USER_STATUSES,
+    })
+
+
+@admin_required
+@require_POST
+def client_update(request, pk):
+    client = _client_or_404(pk)
+    email = (request.POST.get("email") or "").strip()
+    if not email:
+        messages.error(request, "El correo es obligatorio.")
+        return redirect("saas:client", pk=pk)
+    if User.objects.filter(email=email).exclude(pk=client.pk).exists():
+        messages.error(request, "Ese correo ya está en uso.")
+        return redirect("saas:client", pk=pk)
+    client.first_name = (request.POST.get("first_name") or "").strip() or client.first_name
+    client.last_name = (request.POST.get("last_name") or "").strip() or client.last_name
+    client.phone = (request.POST.get("phone") or "").strip() or None
+    client.email = email
+    client.save()
+    messages.success(request, "Información del usuario actualizada correctamente.")
+    return redirect("saas:client", pk=pk)
+
+
+@admin_required
+@require_POST
+def client_status(request, pk):
+    client = _client_or_404(pk)
+    st = request.POST.get("status")
+    if st not in USER_STATUSES:
+        messages.error(request, "El estado seleccionado no es válido.")
+        return redirect("saas:client", pk=pk)
+    client.status = st
+    client.save(update_fields=["status"])
+    messages.success(request, "Estado del usuario actualizado correctamente.")
+    return redirect("saas:client", pk=pk)
+
+
+@admin_required
+@require_POST
+def client_plan(request, pk):
+    client = _client_or_404(pk)
+    bs = request.POST.get("billing_status")
+    if bs not in BILLING_STATUSES:
+        messages.error(request, "Estado de facturación inválido.")
+        return redirect("saas:client", pk=pk)
+    plan_id = request.POST.get("subscription_plan_id")
+    client.subscription_plan_id = int(plan_id) if plan_id and plan_id.isdigit() else None
+    client.billing_status = bs
+    client.next_billing_date = request.POST.get("next_billing_date") or None
+    client.save(update_fields=["subscription_plan_id", "billing_status", "next_billing_date"])
+    messages.success(request, "Plan y fecha de facturación actualizados correctamente.")
+    return redirect("saas:client", pk=pk)
+
+
+@admin_required
+@require_POST
+def client_password(request, pk):
+    client = _client_or_404(pk)
+    pw = request.POST.get("password") or ""
+    if len(pw) < 8 or pw != request.POST.get("password_confirmation"):
+        messages.error(request, "La contraseña debe tener al menos 8 caracteres y coincidir.")
+        return redirect("saas:client", pk=pk)
+    client.set_password(pw)
+    client.save()
+    messages.success(request, "Contraseña del cliente actualizada correctamente.")
+    return redirect("saas:client", pk=pk)

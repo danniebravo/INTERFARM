@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}{{ client.full_name|default:client.email }} · {{ brand.name }}{% endblock %}
+{% block content %}
+<div class="mb-4">
+    <a href="{% url 'saas:clients' %}" class="text-sm text-gray-500 hover:underline">← Volver a clientes</a>
+</div>
+
+<div class="bg-white rounded-2xl border border-black/5 p-5 mb-5 flex flex-wrap items-center justify-between gap-3">
+    <div>
+        <h1 class="text-2xl font-extrabold text-gray-900">{{ client.full_name|default:client.email }}</h1>
+        <div class="text-sm text-gray-500">{{ client.email }}{% if client.phone %} · {{ client.phone }}{% endif %} · {{ client.display_status }}</div>
+    </div>
+    {% if metrics.farms %}
+    <form method="post" action="{% url 'saas:view-as' client.id %}">{% csrf_token %}<button class="rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white">Ver como cliente</button></form>
+    {% endif %}
+</div>
+
+<div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-5">
+    <div class="rounded-2xl bg-white border border-black/5 p-4"><div class="text-xs text-gray-500">Fincas</div><div class="text-xl font-extrabold">{{ metrics.farms }}</div></div>
+    <div class="rounded-2xl bg-white border border-black/5 p-4"><div class="text-xs text-gray-500">Animales</div><div class="text-xl font-extrabold">{{ metrics.animals }}</div></div>
+    <div class="rounded-2xl bg-white border border-black/5 p-4"><div class="text-xs text-gray-500">Activos</div><div class="text-xl font-extrabold">{{ metrics.active_animals }}</div></div>
+    <div class="rounded-2xl bg-white border border-black/5 p-4"><div class="text-xs text-gray-500">Hembras</div><div class="text-xl font-extrabold">{{ metrics.female_animals }}</div></div>
+    <div class="rounded-2xl bg-white border border-black/5 p-4"><div class="text-xs text-gray-500">Machos</div><div class="text-xl font-extrabold">{{ metrics.male_animals }}</div></div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+    {# Info #}
+    <div class="bg-white rounded-2xl border border-black/5 p-5">
+        <h2 class="font-bold text-gray-800 mb-3">Datos</h2>
+        <form method="post" action="{% url 'saas:client.update' client.id %}" class="grid grid-cols-2 gap-3">
+            {% csrf_token %}
+            <input type="text" name="first_name" value="{{ client.first_name }}" placeholder="Nombre" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+            <input type="text" name="last_name" value="{{ client.last_name }}" placeholder="Apellido" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+            <input type="email" name="email" value="{{ client.email }}" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+            <input type="text" name="phone" value="{{ client.phone|default:'' }}" placeholder="Teléfono" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+            <button class="col-span-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white">Guardar datos</button>
+        </form>
+    </div>
+
+    {# Estado + Plan + Password #}
+    <div class="bg-white rounded-2xl border border-black/5 p-5 space-y-4">
+        <div>
+            <h2 class="font-bold text-gray-800 mb-2">Estado</h2>
+            <form method="post" action="{% url 'saas:client.status' client.id %}" class="flex gap-2">
+                {% csrf_token %}
+                <select name="status" class="flex-1 rounded-lg border border-black/15 px-3 py-2 text-sm">
+                    {% for s in user_statuses %}<option value="{{ s }}" {% if client.status == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+                </select>
+                <button class="rounded-lg bg-gray-900 px-3 py-2 text-sm font-semibold text-white">Actualizar</button>
+            </form>
+        </div>
+        <div>
+            <h2 class="font-bold text-gray-800 mb-2">Plan y facturación</h2>
+            <form method="post" action="{% url 'saas:client.plan' client.id %}" class="grid grid-cols-2 gap-2">
+                {% csrf_token %}
+                <select name="subscription_plan_id" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+                    <option value="">Sin plan</option>
+                    {% for p in plans %}<option value="{{ p.id }}" {% if client.subscription_plan_id == p.id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+                </select>
+                <select name="billing_status" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+                    {% for b in billing_statuses %}<option value="{{ b }}" {% if client.billing_status == b %}selected{% endif %}>{{ b }}</option>{% endfor %}
+                </select>
+                <input type="date" name="next_billing_date" value="{{ client.next_billing_date|date:'Y-m-d' }}" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+                <button class="rounded-lg bg-gray-900 px-3 py-2 text-sm font-semibold text-white">Actualizar plan</button>
+            </form>
+        </div>
+        <div>
+            <h2 class="font-bold text-gray-800 mb-2">Restablecer contraseña</h2>
+            <form method="post" action="{% url 'saas:client.password' client.id %}" class="grid grid-cols-2 gap-2">
+                {% csrf_token %}
+                <input type="password" name="password" placeholder="Nueva contraseña" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+                <input type="password" name="password_confirmation" placeholder="Confirmar" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+                <button class="col-span-2 rounded-lg bg-gray-900 px-3 py-2 text-sm font-semibold text-white">Cambiar contraseña</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% if activity %}
+<div class="bg-white rounded-2xl border border-black/5 p-5 mt-5">
+    <h2 class="font-bold text-gray-800 mb-3">Actividad reciente</h2>
+    <div class="space-y-1 max-h-64 overflow-auto text-sm">
+        {% for a in activity %}<div class="border-b border-black/5 py-1 text-gray-600">{{ a.created_at|date:'d M Y H:i' }} · {{ a.description }}</div>{% endfor %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

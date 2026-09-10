@@ -6,6 +6,7 @@
     <nav class="flex gap-1 text-sm font-semibold">
         <a href="{% url 'saas:index' %}" class="rounded-lg bg-white border border-black/10 px-3 py-2 text-gray-700">Resumen</a>
         <a href="{% url 'saas:clients' %}" class="rounded-lg bg-brand text-white px-3 py-2">Clientes</a>
+        <a href="{% url 'saas:plans' %}" class="rounded-lg bg-white border border-black/10 px-3 py-2 text-gray-700">Planes</a>
         <a href="{% url 'saas:settings' %}" class="rounded-lg bg-white border border-black/10 px-3 py-2 text-gray-700">Configuración</a>
     </nav>
 </div>
@@ -20,7 +21,7 @@
         <tbody>
         {% for row in clients %}
             <tr class="border-b border-black/5">
-                <td class="py-2 font-semibold">{{ row.user.full_name|default:row.user.email }}</td>
+                <td class="py-2 font-semibold"><a href="{% url 'saas:client' row.user.id %}" class="hover:underline">{{ row.user.full_name|default:row.user.email }}</a></td>
                 <td class="text-gray-500">{{ row.user.email }}</td>
                 <td>{{ row.farm_count }}{% if row.farms %} <span class="text-gray-400 text-xs">({{ row.farms|join:", " }})</span>{% endif %}</td>
                 <td>{{ row.user.display_status }}</td>
