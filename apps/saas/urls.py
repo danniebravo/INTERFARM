@@ -22,4 +22,11 @@ urlpatterns = [
     path("admin/saas/clientes/<int:pk>/estado", views.client_status, name="client.status"),
     path("admin/saas/clientes/<int:pk>/plan", views.client_plan, name="client.plan"),
     path("admin/saas/clientes/<int:pk>/password", views.client_password, name="client.password"),
+    path("admin/saas/administradores", views.staff, name="staff"),
+    path("admin/saas/administradores/nuevo", views.staff_create, name="staff.create"),
+    path("admin/saas/administradores/<int:pk>/editar", views.staff_edit, name="staff.edit"),
+    path("admin/saas/administradores/<int:pk>/eliminar", views.staff_destroy, name="staff.destroy"),
+    path("admin/saas/notificaciones", views.notifications, name="notifications"),
+    path("admin/saas/notificaciones/enviar", views.send_notification, name="notifications.send"),
+    path("admin/saas/auditoria", views.audit, name="audit"),
 ]

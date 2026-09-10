@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}{% if staff %}Editar{% else %}Nuevo{% endif %} administrador · {{ brand.name }}{% endblock %}
+{% block content %}
+<div class="mb-5">
+    <a href="{% url 'saas:staff' %}" class="text-sm text-gray-500 hover:underline">← Volver a administradores</a>
+    <h1 class="text-2xl font-extrabold text-gray-900 mt-1">{% if staff %}Editar administrador{% else %}Nuevo administrador{% endif %}</h1>
+</div>
+
+<form method="post" action="{% if staff %}{% url 'saas:staff.edit' staff.id %}{% else %}{% url 'saas:staff.create' %}{% endif %}" class="max-w-3xl bg-white rounded-2xl border border-black/5 p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+    {% csrf_token %}
+    <input type="text" name="first_name" value="{{ staff.first_name|default:'' }}" placeholder="Nombre *" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+    <input type="text" name="last_name" value="{{ staff.last_name|default:'' }}" placeholder="Apellido *" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+    <input type="email" name="email" value="{{ staff.email|default:'' }}" placeholder="Correo *" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+    <input type="text" name="phone" value="{{ staff.phone|default:'' }}" placeholder="Teléfono" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+    <select name="role" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+        <option value="admin" {% if staff.role == 'admin' %}selected{% endif %}>Administrador</option>
+        <option value="super_admin" {% if staff.role == 'super_admin' %}selected{% endif %}>Super administrador</option>
+    </select>
+    <select name="status" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+        {% for s in user_statuses %}<option value="{{ s }}" {% if staff.status == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+    </select>
+    <input type="password" name="password" placeholder="{% if staff %}Nueva contraseña (opcional){% else %}Contraseña *{% endif %}" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+    <input type="password" name="password_confirmation" placeholder="Confirmar contraseña" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+
+    <div class="md:col-span-2">
+        <p class="text-sm font-bold text-gray-700 mb-2">Permisos <span class="font-normal text-gray-400">(no aplican a super administrador: acceso total)</span></p>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+            {% for key, label in permissions.items %}
+            <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="admin_permissions" value="{{ key }}" {% if key in staff_perms %}checked{% endif %}> {{ label }}</label>
+            {% endfor %}
+        </div>
+    </div>
+    <button class="md:col-span-2 rounded-xl bg-brand hover:bg-brand-dark px-5 py-3 text-sm font-semibold text-white shadow-glow">{% if staff %}Guardar cambios{% else %}Crear administrador{% endif %}</button>
+</form>
+{% endblock %}

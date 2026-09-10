@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Administradores · {{ brand.name }}{% endblock %}
+{% block content %}
+<div class="flex flex-wrap items-center justify-between gap-3 mb-5">
+    <h1 class="text-2xl font-extrabold text-gray-900">Administradores</h1>
+    {% include "saas/_nav.html" %}
+</div>
+
+<div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+    <form method="get" class="flex-1 min-w-[200px]"><input type="text" name="search" value="{{ search }}" placeholder="Buscar administrador" class="w-full max-w-md rounded-lg border border-black/15 px-3 py-2 text-sm"></form>
+    <a href="{% url 'saas:staff.create' %}" class="rounded-xl bg-brand hover:bg-brand-dark px-4 py-2.5 text-sm font-semibold text-white shadow-glow">+ Nuevo administrador</a>
+</div>
+
+<div class="bg-white rounded-2xl border border-black/5 p-5 overflow-x-auto">
+    <table class="w-full text-sm min-w-[560px]">
+        <thead><tr class="text-left text-gray-500 border-b border-black/10"><th class="py-2">Nombre</th><th>Correo</th><th>Rol</th><th>Estado</th><th></th></tr></thead>
+        <tbody>
+        {% for a in admins %}
+            <tr class="border-b border-black/5">
+                <td class="py-2 font-semibold"><a href="{% url 'saas:staff.edit' a.id %}" class="hover:underline">{{ a.full_name|default:a.email }}</a></td>
+                <td class="text-gray-500">{{ a.email }}</td>
+                <td><span class="rounded-full px-2 py-0.5 text-[11px] font-semibold {% if a.is_super_admin %}bg-purple-100 text-purple-800{% else %}bg-blue-100 text-blue-800{% endif %}">{{ a.role }}</span></td>
+                <td>{{ a.display_status }}</td>
+                <td class="text-right">
+                    <form method="post" action="{% url 'saas:staff.destroy' a.id %}" onsubmit="return confirm('¿Eliminar administrador?');">{% csrf_token %}<button class="text-red-600 text-xs">Eliminar</button></form>
+                </td>
+            </tr>
+        {% empty %}<tr><td colspan="5" class="py-4 text-gray-400">Sin administradores.</td></tr>{% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

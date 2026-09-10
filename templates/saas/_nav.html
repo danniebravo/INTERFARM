@@ -1,0 +1,12 @@
+{% with a=request.resolver_match.url_name %}
+<nav class="flex flex-wrap gap-1 text-sm font-semibold">
+    <a href="{% url 'saas:index' %}" class="rounded-lg px-3 py-2 {% if a == 'index' %}bg-brand text-white{% else %}bg-white border border-black/10 text-gray-700{% endif %}">Resumen</a>
+    <a href="{% url 'saas:clients' %}" class="rounded-lg px-3 py-2 {% if a == 'clients' or a == 'client' or a == 'client.create' %}bg-brand text-white{% else %}bg-white border border-black/10 text-gray-700{% endif %}">Clientes</a>
+    <a href="{% url 'saas:plans' %}" class="rounded-lg px-3 py-2 {% if a == 'plans' %}bg-brand text-white{% else %}bg-white border border-black/10 text-gray-700{% endif %}">Planes</a>
+    <a href="{% url 'saas:billing' %}" class="rounded-lg px-3 py-2 {% if a == 'billing' %}bg-brand text-white{% else %}bg-white border border-black/10 text-gray-700{% endif %}">Facturación</a>
+    <a href="{% url 'saas:staff' %}" class="rounded-lg px-3 py-2 {% if a == 'staff' or a == 'staff.create' or a == 'staff.edit' %}bg-brand text-white{% else %}bg-white border border-black/10 text-gray-700{% endif %}">Admins</a>
+    <a href="{% url 'saas:notifications' %}" class="rounded-lg px-3 py-2 {% if a == 'notifications' %}bg-brand text-white{% else %}bg-white border border-black/10 text-gray-700{% endif %}">Comunicados</a>
+    <a href="{% url 'saas:audit' %}" class="rounded-lg px-3 py-2 {% if a == 'audit' %}bg-brand text-white{% else %}bg-white border border-black/10 text-gray-700{% endif %}">Auditoría</a>
+    <a href="{% url 'saas:settings' %}" class="rounded-lg px-3 py-2 {% if a == 'settings' %}bg-brand text-white{% else %}bg-white border border-black/10 text-gray-700{% endif %}">Configuración</a>
+</nav>
+{% endwith %}

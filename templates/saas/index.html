@@ -3,13 +3,7 @@
 {% block content %}
 <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
     <h1 class="text-2xl font-extrabold text-gray-900">Panel de administración</h1>
-    <nav class="flex gap-1 text-sm font-semibold">
-        <a href="{% url 'saas:index' %}" class="rounded-lg bg-brand text-white px-3 py-2">Resumen</a>
-        <a href="{% url 'saas:clients' %}" class="rounded-lg bg-white border border-black/10 px-3 py-2 text-gray-700">Clientes</a>
-        <a href="{% url 'saas:plans' %}" class="rounded-lg bg-white border border-black/10 px-3 py-2 text-gray-700">Planes</a>
-        <a href="{% url 'saas:billing' %}" class="rounded-lg bg-white border border-black/10 px-3 py-2 text-gray-700">Facturación</a>
-        <a href="{% url 'saas:settings' %}" class="rounded-lg bg-white border border-black/10 px-3 py-2 text-gray-700">Configuración</a>
-    </nav>
+    {% include "saas/_nav.html" %}
 </div>
 
 <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">

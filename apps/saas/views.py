@@ -423,3 +423,185 @@ def billing(request):
         "invoices": invoices, "payments": payments,
         "paid_total": round(paid_total, 2), "pending_total": round(pending_total, 2),
     })
+
+
+# --------------------------------------------------------------------------
+# Administradores + permisos
+# --------------------------------------------------------------------------
+PERM_OPTIONS = {
+    "overview": "Resumen SaaS", "users": "Clientes", "admins": "Administradores",
+    "billing": "Facturación", "plans": "Planes", "notifications": "Notificaciones",
+    "settings": "Configuración", "audit": "Auditoría",
+}
+STAFF_ROLES = ["admin", "super_admin"]
+
+
+def _hidden_ids():
+    return list(getattr(dj_settings, "HIDDEN_ADMIN_USER_IDS", []) or [])
+
+
+def _admin_doc(email):
+    import hashlib
+    base = "admin-" + hashlib.sha1(email.lower().encode()).hexdigest()[:20]
+    doc, i = base, 1
+    while User.objects.filter(document=doc).exists():
+        doc = f"{base}-{i}"; i += 1
+    return doc
+
+
+@admin_required
+def staff(request):
+    q = (request.GET.get("search") or "").strip()
+    qs = User.objects.filter(role__in=STAFF_ROLES).exclude(id__in=_hidden_ids())
+    if q:
+        from django.db.models import Q
+        qs = qs.filter(Q(first_name__icontains=q) | Q(last_name__icontains=q) | Q(email__icontains=q))
+    return render(request, "saas/staff.html", {
+        "admins": qs.order_by("-id")[:100], "search": q, "permissions": PERM_OPTIONS,
+    })
+
+
+def _staff_payload(request, instance=None):
+    post = request.POST
+    for f in ("first_name", "last_name", "email"):
+        if not (post.get(f) or "").strip():
+            return None, "Nombre, apellido y correo son obligatorios."
+    if post.get("role") not in STAFF_ROLES:
+        return None, "Rol inválido."
+    if post.get("status") not in USER_STATUSES:
+        return None, "Estado inválido."
+    email = post.get("email").strip()
+    if User.objects.filter(email=email).exclude(pk=getattr(instance, "pk", None)).exists():
+        return None, "Ese correo ya está en uso."
+    pw = post.get("password") or ""
+    if not instance and (len(pw) < 8 or pw != post.get("password_confirmation")):
+        return None, "La contraseña debe tener al menos 8 caracteres y coincidir."
+    if instance and pw and (len(pw) < 8 or pw != post.get("password_confirmation")):
+        return None, "La contraseña debe tener al menos 8 caracteres y coincidir."
+    role = post.get("role")
+    perms = None if role == "super_admin" else [p for p in request.POST.getlist("admin_permissions") if p in PERM_OPTIONS]
+    return {"first_name": post.get("first_name").strip(), "last_name": post.get("last_name").strip(),
+            "email": email, "phone": post.get("phone") or None, "status": post.get("status"),
+            "role": role, "admin_permissions": perms, "password": pw}, None
+
+
+@admin_required
+def staff_create(request):
+    if request.method == "POST":
+        payload, err = _staff_payload(request)
+        if err:
+            messages.error(request, err)
+            return redirect("saas:staff.create")
+        u = User(name=(payload["first_name"] + " " + payload["last_name"]).strip(),
+                 first_name=payload["first_name"], last_name=payload["last_name"],
+                 document_type="cc", document=_admin_doc(payload["email"]), email=payload["email"],
+                 phone=payload["phone"], status=payload["status"], role=payload["role"],
+                 billing_status="manual", admin_permissions=payload["admin_permissions"])
+        u.set_password(payload["password"])
+        u.save()
+        messages.success(request, "Administrador creado correctamente.")
+        return redirect("saas:staff")
+    return render(request, "saas/staff_form.html", {"permissions": PERM_OPTIONS, "user_statuses": USER_STATUSES, "staff": None})
+
+
+@admin_required
+def staff_edit(request, pk):
+    staff_user = get_object_or_404(User, pk=pk)
+    if not staff_user.can_access_admin_panel() or staff_user.id in _hidden_ids():
+        raise PermissionDenied()
+    if request.method == "POST":
+        payload, err = _staff_payload(request, staff_user)
+        if err:
+            messages.error(request, err)
+            return redirect("saas:staff.edit", pk=pk)
+        for k in ("first_name", "last_name", "email", "phone", "status", "role", "admin_permissions"):
+            setattr(staff_user, k, payload[k])
+        staff_user.name = (payload["first_name"] + " " + payload["last_name"]).strip()
+        if payload["password"]:
+            staff_user.set_password(payload["password"])
+        staff_user.save()
+        messages.success(request, "Administrador actualizado correctamente.")
+        return redirect("saas:staff.edit", pk=pk)
+    return render(request, "saas/staff_form.html", {
+        "permissions": PERM_OPTIONS, "user_statuses": USER_STATUSES, "staff": staff_user,
+        "staff_perms": staff_user.admin_permission_list,
+    })
+
+
+@admin_required
+@require_POST
+def staff_destroy(request, pk):
+    staff_user = get_object_or_404(User, pk=pk)
+    if not staff_user.can_access_admin_panel() or staff_user.id in _hidden_ids():
+        raise PermissionDenied()
+    if int(staff_user.id) == int(request.user.id):
+        messages.error(request, "No puedes eliminar tu propio usuario administrador.")
+        return redirect("saas:staff")
+    staff_user.delete()
+    messages.success(request, "Administrador eliminado correctamente.")
+    return redirect("saas:staff")
+
+
+# --------------------------------------------------------------------------
+# Notificaciones broadcast
+# --------------------------------------------------------------------------
+@admin_required
+def notifications(request):
+    from apps.notifications.models import FarmNotification
+    rows = (FarmNotification.objects.filter(source_type="admin_broadcast")
+            .order_by("-scheduled_for", "-id")[:1000])
+    groups = {}
+    for n in rows:
+        g = groups.setdefault(n.source_key, {"title": n.title, "message": n.message, "level": n.level,
+                                             "scheduled_for": n.scheduled_for, "recipients": 0, "read": 0})
+        g["recipients"] += 1
+        if n.read_at:
+            g["read"] += 1
+    recent = list(groups.values())[:30]
+    return render(request, "saas/notifications.html", {"recent": recent})
+
+
+@admin_required
+@require_POST
+def send_notification(request):
+    from apps.notifications.models import FarmNotification
+    post = request.POST
+    title = (post.get("title") or "").strip()
+    message = (post.get("message") or "").strip()
+    level = post.get("level")
+    target = post.get("target")
+    if not title or not message or level not in ("low", "medium", "high") or target not in ("all", "active", "trial", "past_due"):
+        messages.error(request, "Completa título, mensaje, nivel y destinatario válidos.")
+        return redirect("saas:notifications")
+    qs = _client_qs()
+    if target == "active":
+        qs = qs.filter(status="active")
+    elif target in ("trial", "past_due"):
+        qs = qs.filter(billing_status=target)
+    now = timezone.now()
+    src = f"broadcast-{now:%Y%m%d%H%M%S}"
+    meta = {"automatic": False, "type_label": "Comunicado", "event_type": "admin_broadcast",
+            "target": target, "sent_by": request.user.id}
+    objs = [FarmNotification(user_id=cid, source_type="admin_broadcast", source_key=src, level=level,
+                             title=title, message=message, event_date=now.date(), meta=meta, scheduled_for=now)
+            for cid in qs.values_list("id", flat=True)]
+    FarmNotification.objects.bulk_create(objs, batch_size=500)
+    messages.success(request, f"Notificación enviada a {len(objs)} cliente(s).")
+    return redirect("saas:notifications")
+
+
+# --------------------------------------------------------------------------
+# Auditoría (solo super admin)
+# --------------------------------------------------------------------------
+@admin_required
+def audit(request):
+    if not request.user.is_super_admin():
+        raise PermissionDenied("Solo super administradores.")
+    from django.core.paginator import Paginator
+    q = (request.GET.get("search") or "").strip()
+    qs = UserActivityLog.objects.filter(action__startswith="admin_").exclude(user_id__in=_hidden_ids())
+    if q:
+        from django.db.models import Q
+        qs = qs.filter(Q(description__icontains=q) | Q(action__icontains=q) | Q(ip_address__icontains=q))
+    page = Paginator(qs.select_related("user").order_by("-created_at"), 40).get_page(request.GET.get("page"))
+    return render(request, "saas/audit.html", {"logs": page, "search": q})

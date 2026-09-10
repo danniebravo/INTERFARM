@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Comunicados · {{ brand.name }}{% endblock %}
+{% block content %}
+<div class="flex flex-wrap items-center justify-between gap-3 mb-5">
+    <h1 class="text-2xl font-extrabold text-gray-900">Comunicados</h1>
+    {% include "saas/_nav.html" %}
+</div>
+
+<div class="bg-white rounded-2xl border border-black/5 p-5 mb-5 max-w-2xl">
+    <h2 class="font-bold text-gray-800 mb-3">Enviar comunicado</h2>
+    <form method="post" action="{% url 'saas:notifications.send' %}" class="space-y-3">
+        {% csrf_token %}
+        <input type="text" name="title" placeholder="Título" maxlength="140" class="w-full rounded-lg border border-black/15 px-3 py-2 text-sm">
+        <textarea name="message" rows="3" placeholder="Mensaje" maxlength="1000" class="w-full rounded-lg border border-black/15 px-3 py-2 text-sm"></textarea>
+        <div class="grid grid-cols-2 gap-3">
+            <select name="level" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+                <option value="low">Nivel bajo</option><option value="medium" selected>Nivel medio</option><option value="high">Nivel alto</option>
+            </select>
+            <select name="target" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+                <option value="all">Todos los clientes</option>
+                <option value="active">Solo activos</option>
+                <option value="trial">En prueba</option>
+                <option value="past_due">En mora</option>
+            </select>
+        </div>
+        <button class="rounded-xl bg-brand hover:bg-brand-dark px-5 py-2.5 text-sm font-semibold text-white">Enviar comunicado</button>
+    </form>
+</div>
+
+<div class="bg-white rounded-2xl border border-black/5 p-5">
+    <h2 class="font-bold text-gray-800 mb-3">Comunicados recientes</h2>
+    <div class="space-y-2">
+        {% for r in recent %}
+        <div class="border-b border-black/5 pb-2">
+            <div class="text-sm font-semibold">{{ r.title }}</div>
+            <div class="text-xs text-gray-500">{{ r.message }}</div>
+            <div class="text-[11px] text-gray-400 mt-0.5">{{ r.scheduled_for|date:'d M Y H:i' }} · {{ r.recipients }} destinatarios · {{ r.read }} leídos · nivel {{ r.level }}</div>
+        </div>
+        {% empty %}<p class="text-sm text-gray-400">Aún no has enviado comunicados.</p>{% endfor %}
+    </div>
+</div>
+{% endblock %}
