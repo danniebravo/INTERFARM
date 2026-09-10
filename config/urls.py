@@ -15,7 +15,8 @@ urlpatterns = [
     path("", include("apps.events.urls")),
     path("", include("apps.reports.urls")),
     path("", include("apps.notifications.urls")),
-    # Los demás módulos se irán conectando por fases (panel SaaS, facturación cliente):
+    path("", include("apps.saas.urls")),
+    # Los demás módulos se irán conectando por fases (facturación cliente Wompi):
     # ...
 ]
 

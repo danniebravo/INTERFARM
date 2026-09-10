@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Clientes · {{ brand.name }}{% endblock %}
+{% block content %}
+<div class="flex flex-wrap items-center justify-between gap-3 mb-5">
+    <h1 class="text-2xl font-extrabold text-gray-900">Clientes</h1>
+    <nav class="flex gap-1 text-sm font-semibold">
+        <a href="{% url 'saas:index' %}" class="rounded-lg bg-white border border-black/10 px-3 py-2 text-gray-700">Resumen</a>
+        <a href="{% url 'saas:clients' %}" class="rounded-lg bg-brand text-white px-3 py-2">Clientes</a>
+        <a href="{% url 'saas:settings' %}" class="rounded-lg bg-white border border-black/10 px-3 py-2 text-gray-700">Configuración</a>
+    </nav>
+</div>
+
+<form method="get" class="mb-4">
+    <input type="text" name="q" value="{{ q }}" placeholder="Buscar por nombre o correo" class="w-full max-w-md rounded-lg border border-black/15 px-3 py-2 text-sm">
+</form>
+
+<div class="bg-white rounded-2xl border border-black/5 p-5 overflow-x-auto">
+    <table class="w-full text-sm min-w-[640px]">
+        <thead><tr class="text-left text-gray-500 border-b border-black/10"><th class="py-2">Cliente</th><th>Correo</th><th>Fincas</th><th>Estado</th><th></th></tr></thead>
+        <tbody>
+        {% for row in clients %}
+            <tr class="border-b border-black/5">
+                <td class="py-2 font-semibold">{{ row.user.full_name|default:row.user.email }}</td>
+                <td class="text-gray-500">{{ row.user.email }}</td>
+                <td>{{ row.farm_count }}{% if row.farms %} <span class="text-gray-400 text-xs">({{ row.farms|join:", " }})</span>{% endif %}</td>
+                <td>{{ row.user.display_status }}</td>
+                <td class="text-right">
+                    {% if row.farm_count %}
+                    <form method="post" action="{% url 'saas:view-as' row.user.id %}">{% csrf_token %}<button class="text-xs text-brand font-semibold">Ver como cliente</button></form>
+                    {% else %}<span class="text-xs text-gray-400">Sin fincas</span>{% endif %}
+                </td>
+            </tr>
+        {% empty %}<tr><td colspan="5" class="py-4 text-gray-400">Sin clientes.</td></tr>{% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

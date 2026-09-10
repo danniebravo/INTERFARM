@@ -23,9 +23,9 @@ def _greeting(user):
 @login_required(login_url="accounts:login")
 def home(request):
     user = request.user
-    # Administradores (sin impersonar) → panel SaaS (Fase 4).
+    # Administradores (sin impersonar) → panel SaaS.
     if user.can_access_admin_panel() and not getattr(request, "is_impersonating", False):
-        return render(request, "core/home.html", {"admin_landing": True})
+        return redirect("saas:index")
 
     farm = getattr(request, "current_farm", None)
     if not farm:

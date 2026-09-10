@@ -103,6 +103,13 @@
     </header>
     {% endif %}
 
+    {% if is_impersonating %}
+    <div class="bg-amber-400 text-amber-950 text-sm font-semibold px-4 py-2 flex items-center justify-center gap-3">
+        <span>Estás viendo la plataforma como cliente.</span>
+        <form method="post" action="{% url 'saas:stop-viewing' %}">{% csrf_token %}<button class="rounded-lg bg-amber-950 px-3 py-1 text-amber-50 text-xs font-bold">Salir del modo cliente</button></form>
+    </div>
+    {% endif %}
+
     <main class="mx-auto max-w-7xl px-4 py-6">
         {% if messages %}
             <div class="mb-4 space-y-2">

@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Configuración global · {{ brand.name }}{% endblock %}
+{% block content %}
+<div class="flex flex-wrap items-center justify-between gap-3 mb-5">
+    <h1 class="text-2xl font-extrabold text-gray-900">Configuración global</h1>
+    <nav class="flex gap-1 text-sm font-semibold">
+        <a href="{% url 'saas:index' %}" class="rounded-lg bg-white border border-black/10 px-3 py-2 text-gray-700">Resumen</a>
+        <a href="{% url 'saas:clients' %}" class="rounded-lg bg-white border border-black/10 px-3 py-2 text-gray-700">Clientes</a>
+        <a href="{% url 'saas:settings' %}" class="rounded-lg bg-brand text-white px-3 py-2">Configuración</a>
+    </nav>
+</div>
+
+<form method="post" action="{% url 'saas:settings.update' %}" enctype="multipart/form-data" class="space-y-5 max-w-4xl">
+    {% csrf_token %}
+
+    {# Integraciones #}
+    <div class="bg-white rounded-2xl border border-black/5 p-5">
+        <h2 class="font-bold text-gray-800 mb-3">Integraciones</h2>
+        <label class="text-sm font-semibold block">Google Maps API Key <span class="text-gray-400 font-normal">(activa el mapa real de lotes)</span>
+            <input type="text" name="google_maps_api_key" value="{{ settings.google_maps_api_key|default:'' }}" class="mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm">
+        </label>
+    </div>
+
+    {# Soporte / WhatsApp #}
+    <div class="bg-white rounded-2xl border border-black/5 p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <h2 class="md:col-span-2 font-bold text-gray-800">Soporte</h2>
+        <label class="text-sm font-semibold">WhatsApp (URL o número)
+            <input type="text" name="support_whatsapp_url" value="{{ settings.support_whatsapp_url|default:'' }}" class="mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm">
+        </label>
+        <label class="text-sm font-semibold">Mensaje de WhatsApp
+            <input type="text" name="support_whatsapp_message" value="{{ settings.support_whatsapp_message|default:'' }}" class="mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm">
+        </label>
+    </div>
+
+    {# Pagos / Wompi #}
+    <div class="bg-white rounded-2xl border border-black/5 p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <h2 class="md:col-span-2 font-bold text-gray-800">Pagos (Wompi)</h2>
+        <label class="text-sm font-semibold">Entorno
+            <select name="wompi_environment" class="mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm">
+                <option value="sandbox" {% if settings.wompi_environment == 'sandbox' or not settings.wompi_environment %}selected{% endif %}>Sandbox</option>
+                <option value="production" {% if settings.wompi_environment == 'production' %}selected{% endif %}>Producción</option>
+            </select>
+        </label>
+        <label class="text-sm font-semibold">Moneda
+            <input type="text" name="billing_currency" value="{{ settings.billing_currency|default:'COP' }}" class="mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm">
+        </label>
+        <label class="text-sm font-semibold">Wompi public key
+            <input type="text" name="wompi_public_key" value="{{ settings.wompi_public_key|default:'' }}" class="mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm">
+        </label>
+        <label class="text-sm font-semibold">Wompi private key
+            <input type="text" name="wompi_private_key" value="{{ settings.wompi_private_key|default:'' }}" class="mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm">
+        </label>
+        <label class="text-sm font-semibold">Wompi events key
+            <input type="text" name="wompi_events_key" value="{{ settings.wompi_events_key|default:'' }}" class="mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm">
+        </label>
+        <label class="text-sm font-semibold">Wompi integrity secret
+            <input type="text" name="wompi_integrity_secret" value="{{ settings.wompi_integrity_secret|default:'' }}" class="mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm">
+        </label>
+    </div>
+
+    {# Branding #}
+    <div class="bg-white rounded-2xl border border-black/5 p-5 grid grid-cols-2 md:grid-cols-3 gap-4">
+        <h2 class="col-span-2 md:col-span-3 font-bold text-gray-800">Apariencia</h2>
+        <label class="text-sm font-semibold">Color primario
+            <input type="color" name="app_primary_color" value="{{ settings.app_primary_color|default:'#166534' }}" class="mt-1 w-full h-10 rounded-lg border border-black/15">
+        </label>
+        <label class="text-sm font-semibold">Color primario oscuro
+            <input type="color" name="app_primary_dark_color" value="{{ settings.app_primary_dark_color|default:'#14532d' }}" class="mt-1 w-full h-10 rounded-lg border border-black/15">
+        </label>
+        <label class="text-sm font-semibold">Color de acento
+            <input type="color" name="app_accent_color" value="{{ settings.app_accent_color|default:'#22c55e' }}" class="mt-1 w-full h-10 rounded-lg border border-black/15">
+        </label>
+        <label class="text-sm font-semibold col-span-2 md:col-span-3">Logo
+            <input type="file" name="app_logo" accept="image/*" class="mt-1 block text-sm">
+            {% if settings.app_logo_path %}<img src="/storage/{{ settings.app_logo_path }}" class="mt-2 h-12">{% endif %}
+        </label>
+    </div>
+
+    <button class="rounded-xl bg-brand hover:bg-brand-dark px-5 py-3 text-sm font-semibold text-white shadow-glow">Guardar configuración</button>
+</form>
+{% endblock %}
