@@ -143,10 +143,46 @@ class Animal(models.Model):
         return self.is_male() and self.is_active() and (m is None or m >= 18)
 
     def can_register_milk_production(self):
-        return self.is_female() and self.is_active()
+        if not self.is_active():
+            return False
+        if not self.is_female():
+            return False
+        # Paridad con Laravel: requiere haber parido.
+        return (
+            self.has_calved_before == "si"
+            or int(self.calving_count or 0) > 0
+            or self.last_calving_date is not None
+        )
 
     def can_register_production(self):
+        # El peso (producción de carne) se permite en cualquier animal activo,
+        # incluidas hembras/terneras sin parto. La leche va aparte
+        # (can_register_milk_production). Equivale al fix aplicado en Laravel.
         return self.is_active()
+
+    def milk_production_blocked_reason(self):
+        if self.is_sold():
+            return "No se puede registrar producción de leche en un animal vendido."
+        if self.is_deceased():
+            return "No se puede registrar producción en un animal fallecido."
+        if not self.is_active():
+            return "Solo se puede registrar producción de leche en animales activos dentro de la finca."
+        if not self.is_female():
+            return "Solo las hembras pueden registrar producción de leche."
+        if not self.can_register_milk_production():
+            return "Este animal aún no tiene partos registrados, por eso no puede registrar producción de leche."
+        return None
+
+    def production_blocked_reason(self):
+        if self.can_register_production():
+            return None
+        if self.is_deceased():
+            return "No se puede registrar producción en un animal fallecido."
+        if self.is_sold():
+            return "No se puede registrar producción en un animal vendido."
+        if not self.is_active():
+            return "Solo se puede registrar producción en animales activos dentro de la finca."
+        return None
 
     def development_stage(self):
         m = self.age_in_months()

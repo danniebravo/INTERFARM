@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Salud · {{ animal.name|default:"animal" }}{% endblock %}
+{% block content %}
+<div class="mb-5">
+    <a href="{% url 'animals:show' animal.id %}" class="text-sm text-gray-500 hover:underline">← Volver a la ficha</a>
+    <h1 class="text-2xl font-extrabold text-gray-900 mt-1">Salud · {{ animal.name|default:animal.ear_tag }}</h1>
+</div>
+<div class="bg-white rounded-2xl border border-black/5 p-5">
+    {% if health_records %}
+    <table class="w-full text-sm">
+        <thead><tr class="text-left text-gray-500 border-b border-black/10">
+            <th class="py-2">Fecha</th><th>Tratamiento</th><th>Diagnóstico</th><th>Medicamento</th>
+        </tr></thead>
+        <tbody>
+        {% for r in health_records %}
+            <tr class="border-b border-black/5">
+                <td class="py-2">{{ r.date }}</td>
+                <td>{{ r.treatment_type|default:"—" }}</td>
+                <td>{{ r.diagnosis|default:r.disease|default:"—" }}</td>
+                <td>{{ r.medication|default:"—" }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="text-gray-500">Sin registros de salud.</p>
+    {% endif %}
+</div>
+{% endblock %}

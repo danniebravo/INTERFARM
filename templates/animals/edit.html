@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Editar {{ animal.name|default:"animal" }} · {{ brand.name }}{% endblock %}
+{% block content %}
+<div class="mb-5">
+    <a href="{% url 'animals:show' animal.id %}" class="text-sm text-gray-500 hover:underline">← Volver a la ficha</a>
+    <h1 class="text-2xl font-extrabold text-gray-900 mt-1">Editar animal</h1>
+</div>
+{% url 'animals:update' animal.id as update_url %}
+{% include "animals/_form.html" with action=update_url submit_label="Guardar cambios" %}
+
+{# Traslado de finca #}
+{% if transfer_farms %}
+<div class="mt-6 bg-white rounded-2xl border border-black/5 p-5">
+    <h3 class="font-bold text-gray-800 mb-3">Trasladar a otra finca</h3>
+    <form method="post" action="{% url 'animals:transfer' animal.id %}" class="flex flex-wrap gap-3 items-end">
+        {% csrf_token %}
+        <label class="text-sm font-semibold">Finca destino
+            <select name="target_farm_id" class="mt-1 block rounded-lg border border-black/15 px-3 py-2 text-sm">
+                {% for f in transfer_farms %}<option value="{{ f.id }}">{{ f.name }}</option>{% endfor %}
+            </select>
+        </label>
+        <label class="text-sm font-semibold">Lote destino (opcional)
+            <input type="number" name="target_lot_id" placeholder="ID de lote" class="mt-1 block rounded-lg border border-black/15 px-3 py-2 text-sm">
+        </label>
+        <button class="rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white">Trasladar</button>
+    </form>
+</div>
+{% endif %}
+{% endblock %}

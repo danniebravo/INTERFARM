@@ -6,29 +6,100 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}{{ brand.name }}{% endblock %}</title>
     <meta name="theme-color" content="{{ brand.primary }}">
-    {# Fase 1: se vendoriza Tailwind y se completa el layout portado de Laravel. #}
+    <link rel="icon" href="{% static 'favicon.ico' %}">
+    <link rel="manifest" href="{% static 'manifest.webmanifest' %}">
+
+    {# Tailwind vendorizado (mismo build que el sistema Laravel) #}
+    <script src="{% static 'vendor/tailwind.js' %}"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            DEFAULT: '{{ brand.primary }}',
+                            dark: '#14532d',
+                            light: '{{ brand.accent }}',
+                        },
+                    },
+                    boxShadow: {
+                        glow: '0 10px 30px rgba(22,101,52,.18)',
+                    },
+                },
+            },
+        };
+    </script>
     <style>
         :root { --brand: {{ brand.primary }}; --accent: {{ brand.accent }}; }
-        * { box-sizing: border-box; }
-        body { margin: 0; font-family: system-ui, sans-serif; background: #f6f8fb; color: #111827; }
-        a { color: var(--brand); }
-        .wrap { max-width: 960px; margin: 0 auto; padding: 24px; }
-        .card { background: #fff; border: 1px solid rgba(0,0,0,.08); border-radius: 16px; padding: 20px; margin-bottom: 16px; }
-        .btn { display:inline-block; background: var(--brand); color:#fff; border:0; border-radius:12px; padding:10px 16px; font-weight:700; cursor:pointer; text-decoration:none; }
-        input { width:100%; padding:10px 12px; border:1px solid rgba(0,0,0,.15); border-radius:10px; margin-top:4px; }
-        label { font-weight:600; font-size:14px; display:block; margin-top:12px; }
-        .brandbar { background: var(--brand); color:#fff; padding:14px 24px; font-weight:800; }
+        [x-cloak] { display: none !important; }
+        body { background: #f6f8fb; }
     </style>
     {% block head %}{% endblock %}
 </head>
-<body>
-    <div class="brandbar">{{ brand.name }}</div>
-    <div class="wrap">
+<body class="min-h-screen text-gray-900 antialiased">
+    {% if user.is_authenticated %}
+    <header class="sticky top-0 z-30 bg-brand text-white shadow-glow">
+        <div class="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3">
+            <a href="/" class="flex items-center gap-2 font-extrabold text-lg shrink-0">
+                🐄 {{ brand.name }}
+            </a>
+
+            <nav class="hidden md:flex items-center gap-1 ml-4 text-sm font-semibold">
+                {% with p=request.path %}
+                <a href="/" class="rounded-lg px-3 py-2 hover:bg-white/10 {% if p == '/' %}bg-white/15{% endif %}">Panel</a>
+                <a href="{% url 'animals:index' %}" class="rounded-lg px-3 py-2 hover:bg-white/10 {% if '/animales' in p %}bg-white/15{% endif %}">Animales</a>
+                <a href="/lotes" class="rounded-lg px-3 py-2 hover:bg-white/10 {% if '/lotes' in p %}bg-white/15{% endif %}">Lotes</a>
+                <a href="/produccion" class="rounded-lg px-3 py-2 hover:bg-white/10 {% if '/produccion' in p %}bg-white/15{% endif %}">Producción</a>
+                <a href="/eventos" class="rounded-lg px-3 py-2 hover:bg-white/10 {% if '/eventos' in p %}bg-white/15{% endif %}">Eventos</a>
+                <a href="/finanzas" class="rounded-lg px-3 py-2 hover:bg-white/10 {% if '/finanzas' in p %}bg-white/15{% endif %}">Finanzas</a>
+                <a href="/reportes" class="rounded-lg px-3 py-2 hover:bg-white/10 {% if '/reportes' in p %}bg-white/15{% endif %}">Reportes</a>
+                {% endwith %}
+            </nav>
+
+            <div class="ml-auto flex items-center gap-3">
+                {% if current_farm %}
+                    <span class="hidden sm:inline-flex items-center gap-1 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold">
+                        🏠 {{ current_farm.name }}
+                    </span>
+                {% endif %}
+                {% if is_impersonating %}
+                    <span class="rounded-full bg-amber-400 px-3 py-1 text-xs font-bold text-amber-950">Viendo como cliente</span>
+                {% endif %}
+                <form method="post" action="{% url 'accounts:logout' %}" class="inline">
+                    {% csrf_token %}
+                    <button type="submit" class="rounded-lg bg-white/15 px-3 py-2 text-sm font-semibold hover:bg-white/25">Salir</button>
+                </form>
+            </div>
+        </div>
+
+        {# Nav móvil #}
+        <nav class="md:hidden flex overflow-x-auto gap-1 px-3 pb-2 text-xs font-semibold">
+            <a href="/" class="rounded-lg px-3 py-1.5 bg-white/10">Panel</a>
+            <a href="{% url 'animals:index' %}" class="rounded-lg px-3 py-1.5 bg-white/10">Animales</a>
+            <a href="/lotes" class="rounded-lg px-3 py-1.5 bg-white/10">Lotes</a>
+            <a href="/produccion" class="rounded-lg px-3 py-1.5 bg-white/10">Producción</a>
+            <a href="/eventos" class="rounded-lg px-3 py-1.5 bg-white/10">Eventos</a>
+            <a href="/finanzas" class="rounded-lg px-3 py-1.5 bg-white/10">Finanzas</a>
+        </nav>
+    </header>
+    {% endif %}
+
+    <main class="mx-auto max-w-7xl px-4 py-6">
         {% if messages %}
-            {% for m in messages %}<div class="card">{{ m }}</div>{% endfor %}
+            <div class="mb-4 space-y-2">
+                {% for m in messages %}
+                    <div class="rounded-xl border px-4 py-3 text-sm font-semibold
+                        {% if m.tags == 'error' %}border-red-200 bg-red-50 text-red-800
+                        {% elif m.tags == 'success' %}border-green-200 bg-green-50 text-green-800
+                        {% else %}border-blue-200 bg-blue-50 text-blue-800{% endif %}">
+                        {{ m }}
+                    </div>
+                {% endfor %}
+            </div>
         {% endif %}
         {% block content %}{% endblock %}
-    </div>
+    </main>
+
     {% block scripts %}{% endblock %}
 </body>
 </html>

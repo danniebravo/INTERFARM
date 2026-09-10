@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Registrar animal · {{ brand.name }}{% endblock %}
+{% block content %}
+<div class="mb-5">
+    <a href="{% url 'animals:index' %}" class="text-sm text-gray-500 hover:underline">← Volver a animales</a>
+    <h1 class="text-2xl font-extrabold text-gray-900 mt-1">Registrar animal</h1>
+</div>
+{% url 'animals:store' as store_url %}
+{% include "animals/_form.html" with action=store_url submit_label="Registrar animal" %}
+{% endblock %}

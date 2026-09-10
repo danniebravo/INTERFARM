@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Animales · {{ brand.name }}{% endblock %}
+
+{% block content %}
+<div class="flex flex-wrap items-center justify-between gap-3 mb-5">
+    <h1 class="text-2xl font-extrabold text-gray-900">Animales</h1>
+    <a href="{% url 'animals:create' %}"
+       class="rounded-xl bg-brand hover:bg-brand-dark transition px-4 py-2.5 text-sm font-semibold text-white shadow-glow">
+        + Registrar animal
+    </a>
+</div>
+
+{# Pestañas de estado #}
+<div class="flex flex-wrap gap-2 mb-4 text-sm font-semibold">
+    {% with qs=request.GET.urlencode %}
+    <a href="?status=activos" class="rounded-full px-4 py-1.5 {% if status == 'activos' %}bg-brand text-white{% else %}bg-white border border-black/10 text-gray-700{% endif %}">Activos ({{ active_count }})</a>
+    <a href="?status=vendidos" class="rounded-full px-4 py-1.5 {% if status == 'vendidos' %}bg-brand text-white{% else %}bg-white border border-black/10 text-gray-700{% endif %}">Vendidos ({{ sold_count }})</a>
+    <a href="?status=fallecidos" class="rounded-full px-4 py-1.5 {% if status == 'fallecidos' %}bg-brand text-white{% else %}bg-white border border-black/10 text-gray-700{% endif %}">Fallecidos ({{ deceased_count }})</a>
+    <a href="?status=todos" class="rounded-full px-4 py-1.5 {% if status == 'todos' %}bg-brand text-white{% else %}bg-white border border-black/10 text-gray-700{% endif %}">Todos</a>
+    {% endwith %}
+</div>
+
+{# Filtros #}
+<form method="get" class="grid grid-cols-2 md:grid-cols-6 gap-3 bg-white rounded-2xl border border-black/5 p-4 mb-5">
+    <input type="hidden" name="status" value="{{ status }}">
+    <input type="text" name="search" value="{{ search }}" placeholder="Buscar nombre / arete / código"
+           class="col-span-2 md:col-span-2 rounded-lg border border-black/15 px-3 py-2 text-sm">
+    <select name="sex" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+        <option value="">Sexo: todos</option>
+        <option value="hembra" {% if sex == 'hembra' %}selected{% endif %}>Hembra</option>
+        <option value="macho" {% if sex == 'macho' %}selected{% endif %}>Macho</option>
+    </select>
+    <select name="purpose" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+        <option value="">Propósito: todos</option>
+        <option value="leche" {% if purpose == 'leche' %}selected{% endif %}>Leche</option>
+        <option value="carne" {% if purpose == 'carne' %}selected{% endif %}>Carne</option>
+        <option value="doble_proposito" {% if purpose == 'doble_proposito' %}selected{% endif %}>Doble propósito</option>
+        <option value="crianza" {% if purpose == 'crianza' %}selected{% endif %}>Crianza</option>
+    </select>
+    <select name="lot_id" class="rounded-lg border border-black/15 px-3 py-2 text-sm">
+        <option value="">Lote: todos</option>
+        {% for lot in lots %}
+        <option value="{{ lot.id }}" {% if lot_id == lot.id %}selected{% endif %}>{{ lot.name }}</option>
+        {% endfor %}
+    </select>
+    <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white">Filtrar</button>
+</form>
+
+{# Listado #}
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    {% for animal in animals %}
+    <div class="bg-white rounded-2xl border border-black/5 overflow-hidden shadow-sm hover:shadow-md transition">
+        <a href="{% url 'animals:show' animal.id %}" class="flex gap-3 p-4">
+            <div class="h-16 w-16 rounded-xl bg-gray-100 overflow-hidden flex items-center justify-center shrink-0">
+                {% if animal.photo %}
+                    <img src="/storage/{{ animal.photo }}" alt="{{ animal.name }}" class="h-full w-full object-cover">
+                {% else %}
+                    <span class="text-2xl">{% if animal.sex == 'hembra' %}🐄{% else %}🐂{% endif %}</span>
+                {% endif %}
+            </div>
+            <div class="min-w-0">
+                <div class="font-bold text-gray-900 truncate">{{ animal.name|default:animal.ear_tag|default:"Sin nombre" }}</div>
+                <div class="text-xs text-gray-500 truncate">
+                    {% if animal.ear_tag %}Arete {{ animal.ear_tag }} · {% endif %}{{ animal.development_stage }} · {{ animal.get_sex_display }}
+                </div>
+                <div class="text-xs text-gray-500 mt-0.5">Edad: {{ animal.age_human }}</div>
+                <div class="mt-1 flex flex-wrap gap-1">
+                    <span class="rounded-full px-2 py-0.5 text-[11px] font-semibold
+                        {% if animal.is_active %}bg-green-100 text-green-800{% elif animal.is_sold %}bg-amber-100 text-amber-800{% else %}bg-gray-200 text-gray-700{% endif %}">
+                        {{ animal.status_label }}
+                    </span>
+                    {% if animal.lot %}<span class="rounded-full bg-blue-50 text-blue-700 px-2 py-0.5 text-[11px] font-semibold">{{ animal.lot.name }}</span>{% endif %}
+                </div>
+            </div>
+        </a>
+        <div class="flex border-t border-black/5 text-xs font-semibold text-gray-600">
+            <a href="{% url 'animals:edit' animal.id %}" class="flex-1 py-2 text-center hover:bg-gray-50">Editar</a>
+            <a href="{% url 'animals:production' animal.id %}" class="flex-1 py-2 text-center hover:bg-gray-50 border-l border-black/5">Producción</a>
+            <a href="{% url 'animals:health' animal.id %}" class="flex-1 py-2 text-center hover:bg-gray-50 border-l border-black/5">Salud</a>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-span-full rounded-2xl border border-dashed border-black/15 bg-white p-10 text-center text-gray-500">
+        No hay animales que coincidan con el filtro.
+    </div>
+    {% endfor %}
+</div>
+
+{# Paginación #}
+{% if animals.paginator.num_pages > 1 %}
+<div class="mt-6 flex items-center justify-center gap-2 text-sm">
+    {% if animals.has_previous %}
+        <a href="?status={{ status }}&page={{ animals.previous_page_number }}" class="rounded-lg border border-black/10 bg-white px-3 py-1.5">Anterior</a>
+    {% endif %}
+    <span class="text-gray-600">Página {{ animals.number }} de {{ animals.paginator.num_pages }}</span>
+    {% if animals.has_next %}
+        <a href="?status={{ status }}&page={{ animals.next_page_number }}" class="rounded-lg border border-black/10 bg-white px-3 py-1.5">Siguiente</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% block title %}{{ animal.name|default:"Animal" }} · {{ brand.name }}{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <a href="{% url 'animals:index' %}" class="text-sm text-gray-500 hover:underline">← Volver a animales</a>
+</div>
+
+{# Encabezado #}
+<div class="bg-white rounded-2xl border border-black/5 p-5 mb-5 flex flex-wrap gap-5 items-center">
+    <div class="h-24 w-24 rounded-2xl bg-gray-100 overflow-hidden flex items-center justify-center shrink-0">
+        {% if animal.photo %}
+            <img src="/storage/{{ animal.photo }}" class="h-full w-full object-cover" alt="{{ animal.name }}">
+        {% else %}
+            <span class="text-4xl">{% if animal.sex == 'hembra' %}🐄{% else %}🐂{% endif %}</span>
+        {% endif %}
+    </div>
+    <div class="min-w-0 flex-1">
+        <h1 class="text-2xl font-extrabold text-gray-900">{{ animal.name|default:animal.ear_tag|default:"Sin nombre" }}</h1>
+        <div class="text-sm text-gray-500">
+            {% if animal.ear_tag %}Arete {{ animal.ear_tag }} · {% endif %}
+            {% if animal.internal_code %}Código {{ animal.internal_code }} · {% endif %}
+            {{ animal.development_stage }} · {{ animal.get_sex_display }}
+        </div>
+        <div class="mt-2 flex flex-wrap gap-2 text-xs font-semibold">
+            <span class="rounded-full px-3 py-1 {% if animal.is_active %}bg-green-100 text-green-800{% elif animal.is_sold %}bg-amber-100 text-amber-800{% else %}bg-gray-200 text-gray-700{% endif %}">{{ animal.status_label }}</span>
+            <span class="rounded-full bg-gray-100 px-3 py-1 text-gray-700">Edad: {{ animal.age_human }}</span>
+            {% if animal.lot %}<span class="rounded-full bg-blue-50 text-blue-700 px-3 py-1">{{ animal.lot.name }}</span>{% endif %}
+            {% if animal.weight_current %}<span class="rounded-full bg-gray-100 px-3 py-1 text-gray-700">Peso: {{ animal.weight_current }} kg</span>{% endif %}
+        </div>
+    </div>
+    <div class="flex flex-col gap-2">
+        <a href="{% url 'animals:edit' animal.id %}" class="rounded-xl border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 text-center">Editar</a>
+        <form method="post" action="{% url 'animals:destroy' animal.id %}" onsubmit="return confirm('¿Eliminar este animal? Esta acción no se puede deshacer.');">
+            {% csrf_token %}
+            <button class="w-full rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100">Eliminar</button>
+        </form>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+    {# Registro de producción (peso + leche) #}
+    <div class="bg-white rounded-2xl border border-black/5 p-5">
+        <h2 class="text-lg font-extrabold text-gray-900 mb-1">Producción</h2>
+        {% if can_register_production %}
+            <p class="text-sm text-gray-500 mb-4">Registra rápido {% if can_register_milk %}litros, peso{% else %}peso{% endif %}, alimentación y observaciones.</p>
+            <form method="post" action="{% url 'animals:production.store' animal.id %}" class="grid grid-cols-2 gap-3">
+                {% csrf_token %}
+                <label class="text-sm font-semibold col-span-1">Fecha
+                    <input type="date" name="date" value="{% now 'Y-m-d' %}" class="mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm">
+                </label>
+                {% if can_register_milk %}
+                <label class="text-sm font-semibold col-span-1">Periodo
+                    <select name="period" class="mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm">
+                        <option value="">—</option>
+                        <option value="mañana">Mañana</option>
+                        <option value="tarde">Tarde</option>
+                        <option value="mañana_tarde">Mañana y tarde</option>
+                    </select>
+                </label>
+                <label class="text-sm font-semibold col-span-1">Litros de leche
+                    <input type="number" step="0.01" min="0" name="liters" class="mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm">
+                </label>
+                {% endif %}
+                <label class="text-sm font-semibold col-span-1">Peso (kg)
+                    <input type="number" step="0.01" min="0" max="2000" name="weight" class="mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm">
+                </label>
+                <label class="text-sm font-semibold col-span-2">Tipo de alimentación
+                    <input type="text" name="feeding_type" class="mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm">
+                </label>
+                <label class="text-sm font-semibold col-span-2">Notas
+                    <textarea name="notes" rows="2" class="mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm"></textarea>
+                </label>
+                <button class="col-span-2 rounded-xl bg-brand hover:bg-brand-dark px-4 py-2.5 text-sm font-semibold text-white">Guardar registro</button>
+            </form>
+        {% else %}
+            <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">{{ production_blocked_reason }}</div>
+        {% endif %}
+
+        {% if production_records %}
+        <h3 class="mt-5 mb-2 text-sm font-bold text-gray-700">Historial de producción</h3>
+        <div class="space-y-1 max-h-56 overflow-auto">
+            {% for r in production_records %}
+            <div class="flex justify-between text-xs border-b border-black/5 py-1">
+                <span>{{ r.date }} · {{ r.type }}{% if r.period %} ({{ r.period }}){% endif %}</span>
+                <span class="font-semibold">{% if r.liters %}{{ r.liters }} L{% elif r.weight %}{{ r.weight }} kg{% else %}—{% endif %}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    {# Salud #}
+    <div class="bg-white rounded-2xl border border-black/5 p-5">
+        <h2 class="text-lg font-extrabold text-gray-900 mb-4">Salud</h2>
+        <form method="post" action="{% url 'animals:health.store' animal.id %}" class="grid grid-cols-2 gap-3">
+            {% csrf_token %}
+            <label class="text-sm font-semibold col-span-1">Fecha
+                <input type="date" name="date" value="{% now 'Y-m-d' %}" class="mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm">
+            </label>
+            <label class="text-sm font-semibold col-span-1">Tipo de tratamiento
+                <input type="text" name="treatment_type" class="mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm">
+            </label>
+            <label class="text-sm font-semibold col-span-1">Enfermedad
+                <input type="text" name="disease" class="mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm">
+            </label>
+            <label class="text-sm font-semibold col-span-1">Medicamento
+                <input type="text" name="medication" class="mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm">
+            </label>
+            <label class="text-sm font-semibold col-span-2">Notas
+                <textarea name="notes" rows="2" class="mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm"></textarea>
+            </label>
+            <button class="col-span-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white">Guardar salud</button>
+        </form>
+        {% if health_records %}
+        <div class="mt-4 space-y-1 max-h-40 overflow-auto">
+            {% for r in health_records %}
+            <div class="text-xs border-b border-black/5 py-1">{{ r.date }} · {{ r.treatment_type|default:r.diagnosis|default:r.disease|default:"Registro" }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    {# Reproductivo (solo hembras) #}
+    {% if animal.sex == 'hembra' %}
+    <div class="bg-white rounded-2xl border border-black/5 p-5">
+        <h2 class="text-lg font-extrabold text-gray-900 mb-4">Seguimiento reproductivo</h2>
+        <form method="post" action="{% url 'animals:reproductive.update' animal.id %}" class="grid grid-cols-2 gap-3">
+            {% csrf_token %}
+            <label class="text-sm font-semibold col-span-1">¿Preñada?
+                <select name="is_pregnant" class="mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm">
+                    <option value="no" {% if animal.is_pregnant != 'si' %}selected{% endif %}>No</option>
+                    <option value="si" {% if animal.is_pregnant == 'si' %}selected{% endif %}>Sí</option>
+                </select>
+            </label>
+            <label class="text-sm font-semibold col-span-1">Fecha de preñez/servicio
+                <input type="date" name="pregnancy_date" value="{{ animal.pregnancy_date|date:'Y-m-d' }}" class="mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm">
+            </label>
+            <label class="text-sm font-semibold col-span-1">Toro (padre)
+                <select name="pregnancy_sire_id" class="mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm">
+                    <option value="">— manual / no aplica</option>
+                    {% for s in eligible_sires %}
+                    <option value="{{ s.id }}" {% if animal.pregnancy_sire_id == s.id %}selected{% endif %}>🏠 {{ s.farm.name }} · {{ s.name|default:s.ear_tag }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label class="text-sm font-semibold col-span-1">Último parto
+                <input type="date" name="last_calving_date" value="{{ animal.last_calving_date|date:'Y-m-d' }}" class="mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm">
+            </label>
+            <label class="text-sm font-semibold col-span-1">N.º de partos
+                <input type="number" min="0" max="25" name="calving_count" value="{{ animal.calving_count }}" class="mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm">
+            </label>
+            <button class="col-span-2 rounded-xl bg-brand hover:bg-brand-dark px-4 py-2.5 text-sm font-semibold text-white">Actualizar estado</button>
+        </form>
+    </div>
+    {% endif %}
+
+    {# Genealogía / crías #}
+    <div class="bg-white rounded-2xl border border-black/5 p-5">
+        <h2 class="text-lg font-extrabold text-gray-900 mb-3">Crías</h2>
+        {% if offspring %}
+        <ul class="mb-4 space-y-1 text-sm">
+            {% for o in offspring %}<li class="border-b border-black/5 py-1">{{ o.name|default:o.ear_tag|default:"Animal" }} <span class="text-gray-400">#{{ o.id }}</span></li>{% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-sm text-gray-400 mb-4">Sin crías registradas.</p>
+        {% endif %}
+        <form method="post" action="{% url 'animals:offspring.attach' animal.id %}" class="flex gap-2">
+            {% csrf_token %}
+            <select name="child_id" class="flex-1 rounded-lg border border-black/15 px-3 py-2 text-sm">
+                <option value="">Vincular cría…</option>
+                {% for c in eligible_offspring %}
+                <option value="{{ c.id }}">🏠 {{ c.farm.name }} · {{ c.name|default:c.ear_tag|default:"Animal" }} #{{ c.id }}</option>
+                {% endfor %}
+            </select>
+            <button class="rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white">Vincular</button>
+        </form>
+        <p class="text-[11px] text-gray-400 mt-1">Se asignará este animal como {% if animal.sex == 'hembra' %}madre{% else %}padre{% endif %} de la cría elegida. Puedes elegir crías de cualquiera de tus fincas.</p>
+    </div>
+</div>
+{% endblock %}
