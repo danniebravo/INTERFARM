@@ -12,8 +12,9 @@ urlpatterns = [
     path("", include("apps.production.urls")),
     path("", include("apps.lots.urls")),
     path("", include("apps.finance.urls")),
+    path("", include("apps.events.urls")),
     # Los demás módulos se irán conectando por fases:
-    # path("", include("apps.events.urls")),
+    # path("", include("apps.reports.urls")),
     # ...
 ]
 
