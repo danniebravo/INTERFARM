@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ lot.name }} · {{ brand.name }}{% endblock %}
+{% block head %}<link rel="stylesheet" href="{% static 'vendor/leaflet.css' %}">{% endblock %}
+
+{% block content %}
+<div class="mb-4 flex items-center justify-between">
+    <a href="{% url 'lots:index' %}" class="text-sm text-gray-500 hover:underline">← Volver a lotes</a>
+    <a href="{% url 'lots:edit' lot.id %}" class="rounded-xl border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">Editar lote</a>
+</div>
+
+<div class="bg-white rounded-2xl border border-black/5 p-5 mb-5">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+        <h1 class="text-2xl font-extrabold text-gray-900">{{ lot.name }}</h1>
+        <span class="rounded-full px-3 py-1 text-xs font-semibold {% if lot.status == 'activo' %}bg-green-100 text-green-800{% else %}bg-gray-200 text-gray-700{% endif %}">{{ lot.status|capfirst }}</span>
+    </div>
+    <div class="text-sm text-gray-500 mt-1">{% if lot.code %}Código {{ lot.code }} · {% endif %}{{ lot.type|default:"Sin tipo" }} · {{ lot.display_area }}</div>
+    {% if lot.description %}<p class="text-sm text-gray-600 mt-2">{{ lot.description }}</p>{% endif %}
+</div>
+
+{% if lot.has_polygon %}
+<div class="bg-white rounded-2xl border border-black/5 p-5 mb-5">
+    <div id="lotMap" style="height:360px" class="rounded-xl overflow-hidden border border-black/10"></div>
+</div>
+{% endif %}
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+    {# Asignar animales #}
+    <div class="bg-white rounded-2xl border border-black/5 p-5">
+        <h2 class="text-lg font-extrabold text-gray-900 mb-3">Asignar animales al lote</h2>
+        <form method="post" action="{% url 'lots:animals.assign' lot.id %}">
+            {% csrf_token %}
+            <select name="animal_ids" multiple size="10" class="w-full rounded-lg border border-black/15 px-3 py-2 text-sm">
+                {% for a in candidate_animals %}
+                <option value="{{ a.id }}">🏠 {{ a.farm.name }} · {{ a.name|default:a.ear_tag|default:a.id }}{% if a.lot %} (lote: {{ a.lot.name }}){% endif %}</option>
+                {% endfor %}
+            </select>
+            <p class="text-[11px] text-gray-400 mt-1">Ctrl/Cmd para seleccionar varios. Puedes traer animales de otras fincas del dueño (se transfieren a esta finca).</p>
+            <button class="mt-3 rounded-xl bg-brand hover:bg-brand-dark px-4 py-2.5 text-sm font-semibold text-white">Asignar seleccionados</button>
+        </form>
+    </div>
+
+    {# Animales actuales #}
+    <div class="bg-white rounded-2xl border border-black/5 p-5">
+        <h2 class="text-lg font-extrabold text-gray-900 mb-3">Animales en el lote ({{ animals|length }})</h2>
+        {% if animals %}
+        <ul class="space-y-1 text-sm max-h-72 overflow-auto">
+            {% for a in animals %}
+            <li class="border-b border-black/5 py-1"><a href="{% url 'animals:show' a.id %}" class="hover:underline">{{ a.name|default:a.ear_tag|default:a.id }}</a></li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-sm text-gray-400">Sin animales en este lote.</p>
+        {% endif %}
+    </div>
+</div>
+
+{# Historial de lote #}
+<div class="bg-white rounded-2xl border border-black/5 p-5 mt-5">
+    <h2 class="text-lg font-extrabold text-gray-900 mb-3">Historial de ingresos</h2>
+    {% if lot_history %}
+    <table class="w-full text-sm">
+        <thead><tr class="text-left text-gray-500 border-b border-black/10"><th class="py-2">Animal</th><th>Ingreso</th><th>Salida</th></tr></thead>
+        <tbody>
+        {% for h in lot_history %}
+            <tr class="border-b border-black/5">
+                <td class="py-2">{{ h.animal.name|default:h.animal.ear_tag|default:h.animal_id }}</td>
+                <td>{{ h.entered_at|date:'d M Y'|default:'—' }}</td>
+                <td>{{ h.exited_at|date:'d M Y'|default:'Presente' }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="text-sm text-gray-400">Sin historial de ingresos.</p>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if lot.has_polygon %}
+<script src="{% static 'vendor/leaflet.js' %}"></script>
+<script>
+(function () {
+    var pts = {{ lot.polygon_points_json|safe }};
+    var map = L.map('lotMap');
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
+    var poly = L.polygon(pts.map(function (p) { return [p.lat, p.lng]; }), { color: '#166534', weight: 2, fillOpacity: .25 }).addTo(map);
+    map.fitBounds(poly.getBounds());
+    setTimeout(function () { map.invalidateSize(); }, 200);
+})();
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Crear lote · {{ brand.name }}{% endblock %}
+{% block content %}
+<div class="mb-5">
+    <a href="{% url 'lots:index' %}" class="text-sm text-gray-500 hover:underline">← Volver a lotes</a>
+    <h1 class="text-2xl font-extrabold text-gray-900 mt-1">Crear lote</h1>
+</div>
+{% url 'lots:store' as store_url %}
+{% include "lots/_form.html" with action=store_url submit_label="Crear lote" %}
+{% endblock %}

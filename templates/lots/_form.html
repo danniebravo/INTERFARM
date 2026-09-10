@@ -1,0 +1,131 @@
+{# Form compartido de lote con editor de mapa Leaflet. Espera: action, submit_label, lot (opcional), farm #}
+{% load static %}
+<link rel="stylesheet" href="{% static 'vendor/leaflet.css' %}">
+<form method="post" action="{{ action }}" class="space-y-5">
+    {% csrf_token %}
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white rounded-2xl border border-black/5 p-5">
+        <label class="text-sm font-semibold">Nombre *
+            <input type="text" name="name" value="{% firstof lot.name old.name '' %}" class="mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm">
+        </label>
+        <label class="text-sm font-semibold">Código {% if not lot or not lot.code %}*{% endif %}
+            {% if lot and lot.code %}
+                <input type="text" value="{{ lot.code }}" disabled class="mt-1 w-full rounded-lg border border-black/10 bg-gray-100 px-3 py-2 text-sm text-gray-500">
+            {% else %}
+                <input type="text" name="code" value="{% firstof old.code '' %}" class="mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm">
+            {% endif %}
+        </label>
+        <label class="text-sm font-semibold">Tipo
+            <select name="type" class="mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm">
+                {% for v, l in types %}<option value="{{ v }}" {% if lot.type == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+            </select>
+        </label>
+        <label class="text-sm font-semibold">Estado
+            <select name="status" class="mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm">
+                <option value="activo" {% if lot.status == 'activo' or not lot %}selected{% endif %}>Activo</option>
+                <option value="inactivo" {% if lot.status == 'inactivo' %}selected{% endif %}>Inactivo</option>
+            </select>
+        </label>
+        <label class="text-sm font-semibold">Área manual (m²)
+            <input type="number" step="0.01" min="0" name="area_manual" value="{{ lot.area_manual|default:'' }}" class="mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm">
+        </label>
+        <label class="text-sm font-semibold">Descripción
+            <input type="text" name="description" value="{{ lot.description|default:'' }}" class="mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm">
+        </label>
+    </div>
+
+    {# Editor de mapa #}
+    <div class="bg-white rounded-2xl border border-black/5 p-5">
+        <div class="flex flex-wrap items-center gap-2 mb-3">
+            <input id="locSearch" type="text" placeholder="Buscar ubicación (dirección, vereda, municipio)…" class="flex-1 min-w-[220px] rounded-lg border border-black/15 px-3 py-2 text-sm">
+            <button type="button" id="locSearchBtn" class="rounded-lg bg-gray-900 px-3 py-2 text-sm font-semibold text-white">Buscar</button>
+            <button type="button" id="clearPoly" class="rounded-lg border border-black/10 px-3 py-2 text-sm font-semibold text-gray-700">Limpiar polígono</button>
+            <span class="text-sm text-gray-600">Área: <b id="areaLabel">—</b></span>
+        </div>
+        <div id="locResults" class="mb-2 text-sm"></div>
+        <div id="lotMap" style="height:420px" class="rounded-xl overflow-hidden border border-black/10"></div>
+        <p class="text-xs text-gray-400 mt-2">Haz clic en el mapa para agregar vértices del lote. El área se calcula automáticamente.</p>
+        <input type="hidden" name="polygon_json" id="polygon_json" value="">
+        <input type="hidden" name="center_lat" id="center_lat" value="{{ lot.center_lat|default:'' }}">
+        <input type="hidden" name="center_lng" id="center_lng" value="{{ lot.center_lng|default:'' }}">
+        <input type="hidden" name="area_calculated" id="area_calculated" value="{{ lot.area_calculated|default:'' }}">
+    </div>
+
+    <div class="flex gap-3">
+        <button class="rounded-xl bg-brand hover:bg-brand-dark px-5 py-3 text-sm font-semibold text-white shadow-glow">{{ submit_label }}</button>
+        <a href="{% url 'lots:index' %}" class="rounded-xl border border-black/10 bg-white px-5 py-3 text-sm font-semibold text-gray-700">Cancelar</a>
+    </div>
+</form>
+
+<script src="{% static 'vendor/leaflet.js' %}"></script>
+<script>
+(function () {
+    var initial = {{ lot.polygon_points_json|default:'[]'|safe }};
+    var center = [{{ lot.center_lat|default:'4.6' }}, {{ lot.center_lng|default:'-74.08' }}];
+    var map = L.map('lotMap').setView(center, initial.length ? 15 : 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
+
+    var points = initial.slice();
+    var poly = L.polygon(points.map(function (p) { return [p.lat, p.lng]; }), { color: '#166534', weight: 2, fillOpacity: .25 }).addTo(map);
+    var markers = [];
+
+    function sphericalArea(pts) {
+        if (pts.length < 3) return 0;
+        var R = 6378137, area = 0;
+        for (var i = 0; i < pts.length; i++) {
+            var p1 = pts[i], p2 = pts[(i + 1) % pts.length];
+            area += (p2.lng - p1.lng) * Math.PI / 180 *
+                (2 + Math.sin(p1.lat * Math.PI / 180) + Math.sin(p2.lat * Math.PI / 180));
+        }
+        return Math.abs(area * R * R / 2);
+    }
+    function fmtArea(m2) {
+        if (!m2) return '—';
+        return m2 >= 10000 ? (m2.toFixed(0) + ' m² · ' + (m2 / 10000).toFixed(3) + ' ha') : (m2.toFixed(0) + ' m²');
+    }
+    function redraw() {
+        poly.setLatLngs(points.map(function (p) { return [p.lat, p.lng]; }));
+        markers.forEach(function (m) { map.removeLayer(m); });
+        markers = points.map(function (p, i) {
+            var mk = L.circleMarker([p.lat, p.lng], { radius: 6, color: '#2563eb', fillColor: '#2563eb', fillOpacity: 1 }).addTo(map);
+            mk.on('click', function (e) { L.DomEvent.stop(e); points.splice(i, 1); redraw(); });
+            return mk;
+        });
+        var area = sphericalArea(points);
+        document.getElementById('areaLabel').textContent = fmtArea(area);
+        document.getElementById('polygon_json').value = points.length >= 3 ? JSON.stringify(points) : '';
+        document.getElementById('area_calculated').value = points.length >= 3 ? area.toFixed(2) : '';
+        if (points.length) {
+            var c = points.reduce(function (a, p) { return [a[0] + p.lat, a[1] + p.lng]; }, [0, 0]);
+            document.getElementById('center_lat').value = (c[0] / points.length).toFixed(7);
+            document.getElementById('center_lng').value = (c[1] / points.length).toFixed(7);
+        }
+    }
+    map.on('click', function (e) { points.push({ lat: e.latlng.lat, lng: e.latlng.lng }); redraw(); });
+    document.getElementById('clearPoly').onclick = function () { points = []; redraw(); };
+    if (initial.length) { redraw(); map.fitBounds(poly.getBounds()); }
+
+    // Búsqueda de ubicación
+    function doSearch() {
+        var q = document.getElementById('locSearch').value.trim();
+        if (q.length < 3) return;
+        fetch('{% url "lots:location-search" %}?q=' + encodeURIComponent(q))
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                var box = document.getElementById('locResults');
+                box.innerHTML = '';
+                (data.results || []).forEach(function (res) {
+                    var a = document.createElement('button');
+                    a.type = 'button';
+                    a.className = 'block w-full text-left px-3 py-1.5 rounded hover:bg-gray-100';
+                    a.textContent = res.name;
+                    a.onclick = function () { map.setView([res.lat, res.lng], 16); box.innerHTML = ''; };
+                    box.appendChild(a);
+                });
+                if (!(data.results || []).length) box.textContent = 'Sin resultados.';
+            });
+    }
+    document.getElementById('locSearchBtn').onclick = doSearch;
+    document.getElementById('locSearch').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); doSearch(); } });
+    setTimeout(function () { map.invalidateSize(); }, 200);
+})();
+</script>

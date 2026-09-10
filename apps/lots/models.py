@@ -39,6 +39,10 @@ class Lot(models.Model):
     def has_polygon(self):
         return bool(self.polygon) and len(self.polygon) >= 3
 
+    def polygon_points_json(self):
+        import json
+        return json.dumps(self.polygon or [])
+
     def display_area(self):
         value = self.area_calculated or self.area_manual
         if not value:
