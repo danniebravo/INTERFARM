@@ -28,6 +28,7 @@ def sync_for_farm_and_user(farm, user):
     start, end = _window()
     now = timezone.now()
     current_auto_keys = []
+    new_notifs = []  # (title, message) recién creadas → web push
 
     # 1) Eventos manuales pendientes en la ventana
     manual = (Event.objects.filter(farm_id=farm.id)
@@ -40,17 +41,19 @@ def sync_for_farm_and_user(farm, user):
         if not d:
             continue
         animal_name = (ev.animal.name or ev.animal.ear_tag) if ev.animal_id and ev.animal else None
-        FarmNotification.objects.update_or_create(
+        msg = f"{type_label(ev.type)} · {d:%d/%m/%Y}" + (f" · {animal_name}" if animal_name else "")
+        _, created = FarmNotification.objects.update_or_create(
             user_id=user.id, source_type="calendar_event", source_key=str(ev.id),
             defaults={
                 "farm_id": farm.id, "event_id": ev.id,
                 "level": PRIORITY_LEVEL.get(ev.priority, "medium"),
-                "title": ev.title,
-                "message": f"{type_label(ev.type)} · {d:%d/%m/%Y}" + (f" · {animal_name}" if animal_name else ""),
+                "title": ev.title, "message": msg,
                 "event_date": d, "lot_name": ev.lot_name,
                 "meta": {"automatic": False, "type_label": type_label(ev.type)},
                 "scheduled_for": now,
             })
+        if created:
+            new_notifs.append((ev.title, msg))
 
     # 2) Eventos automáticos (reproductivos/salud) en la ventana
     for e in automatic_events(farm.id):
@@ -58,23 +61,34 @@ def sync_for_farm_and_user(farm, user):
         if not d or not (start <= d <= end):
             continue
         current_auto_keys.append(e["id"])
-        FarmNotification.objects.update_or_create(
+        msg = f"{e['type_label']} · {d:%d/%m/%Y}" + (f" · {e['animal_name']}" if e["animal_name"] else "")
+        _, created = FarmNotification.objects.update_or_create(
             user_id=user.id, source_type="automatic_event", source_key=e["id"],
             defaults={
                 "farm_id": farm.id, "event_id": None,
                 "level": PRIORITY_LEVEL.get(e["priority"], "medium"),
-                "title": e["title"],
-                "message": f"{e['type_label']} · {d:%d/%m/%Y}" + (f" · {e['animal_name']}" if e["animal_name"] else ""),
+                "title": e["title"], "message": msg,
                 "event_date": d, "lot_name": e["lot_name"],
                 "meta": {"automatic": True, "type_label": e["type_label"], "source": e["source"]},
                 "scheduled_for": now,
             })
+        if created:
+            new_notifs.append((e["title"], msg))
 
     # 3) Purga de automáticas obsoletas (ya no vigentes)
     obsolete = FarmNotification.objects.filter(user_id=user.id, farm_id=farm.id, source_type="automatic_event")
     if current_auto_keys:
         obsolete = obsolete.exclude(source_key__in=current_auto_keys)
     obsolete.delete()
+
+    # Web push para las notificaciones recién creadas (no reenvía las existentes).
+    if new_notifs:
+        try:
+            from .push import send_to_user
+            for title, message in new_notifs[:10]:
+                send_to_user(user.id, title, message, url="/eventos")
+        except Exception:
+            pass
 
 
 def unread_qs(user):

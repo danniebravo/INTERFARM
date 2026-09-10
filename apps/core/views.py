@@ -1,7 +1,10 @@
 from datetime import date
 
+from django.conf import settings
 from django.contrib.auth.decorators import login_required
+from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import redirect, render
+from django.views.decorators.cache import cache_control
 
 from apps.animals.models import Animal
 from apps.lots.models import Lot
@@ -79,3 +82,21 @@ def home(request):
         "milk_today": milk_today, "milk_fortnight": milk_fortnight, "milk_year": milk_year,
         "recent": recent,
     })
+
+
+@cache_control(max_age=0)
+def service_worker(request):
+    """Sirve el service worker desde la raíz del sitio (scope global)."""
+    path = settings.BASE_DIR / "static" / "service-worker.js"
+    if not path.exists():
+        raise Http404()
+    resp = FileResponse(open(path, "rb"), content_type="application/javascript")
+    resp["Service-Worker-Allowed"] = "/"
+    return resp
+
+
+def manifest(request):
+    path = settings.BASE_DIR / "static" / "manifest.webmanifest"
+    if not path.exists():
+        raise Http404()
+    return FileResponse(open(path, "rb"), content_type="application/manifest+json")
