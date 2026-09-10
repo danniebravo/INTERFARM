@@ -4,7 +4,8 @@ Reescritura del SaaS de gestión ganadera **InterFarm** de **Laravel a Python/Dj
 **paridad 1:1** (mismas pantallas, reglas y datos). El código Laravel original queda como
 referencia en [`legacy-laravel/`](./legacy-laravel).
 
-> Estado: **en construcción por fases.** Ver el detalle de fases más abajo.
+> Estado: **funcionalmente completo y verificado** (cliente + panel SaaS admin + integraciones). Ver fases abajo.
+> Para poner en producción en el servidor nuevo: **[DEPLOY.md](./DEPLOY.md)**.
 
 ## Stack
 
@@ -66,10 +67,12 @@ a las tablas existentes de MySQL. Los datos se traen con un dump/restore desde e
 
 ## Migración — fases
 
-- **Fase 0** — Rescate de datos + reorg del repo + scaffold Django. *(en curso)*
-- **Fase 1** — Todos los modelos `managed=False` + auth bcrypt + multi-finca + base/PWA.
-- **Fase 2** — Animales, Lotes (con mapa), Producción.
-- **Fase 3** — Dashboard, Eventos, Finanzas, Reportes, Lactancia/Genealogía, Perfil, Configuración, Notificaciones, Facturación cliente.
-- **Fase 4** — Panel SaaS admin.
-- **Fase 5** — Wompi, scheduler, web push, service worker, mail.
-- **Fase 6** — Verificación integral con datos reales.
+- **Fase 0** — Rescate de datos + reorg del repo + scaffold Django. ✅
+- **Fase 1** — Todos los modelos `managed=False` + auth bcrypt + multi-finca + base/PWA. ✅
+- **Fase 2** — Animales, Lotes (mapa Leaflet), Producción. ✅
+- **Fase 3** — Dashboard, Eventos+calendario, Finanzas, Reportes (+CSV), Notificaciones (in-app + web push), Perfil, Configuración/miembros. ✅
+- **Fase 4** — Panel SaaS admin (overview/MRR, clientes+detalle+crear, planes, facturación, config global, impersonation, administradores+permisos, comunicados, auditoría). ✅
+- **Fase 5** — Facturas + scheduler (management commands), Wompi (checkout+webhook), web push VAPID, PDF de factura, formas de pago, branding dinámico. ✅
+- **Fase 6** — Verificación integral con datos reales (recorrido de módulos + login bcrypt real + paridad de conteos). ✅
+
+**Pendiente (acabado, opcional):** paridad visual pixel exacta vs. legacy; editor de mapa Google avanzado en Lotes (hoy Leaflet, sin API key).
