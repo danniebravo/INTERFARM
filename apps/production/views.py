@@ -342,6 +342,94 @@ def destroy_milk_usage(request, pk):
 
 @login_required
 @require_POST
+def update_milk_day(request, pk=None):
+    """Edita la leche de un animal en un día (mañana/tarde): upsert por período."""
+    farm = _farm(request)
+    if not farm:
+        return redirect("tenancy:farm_create")
+    post = request.POST
+    d = post.get("production_date")
+    animal = Animal.objects.filter(farm_id=farm.id, id=post.get("animal_id")).first()
+    if not animal or not animal.can_register_milk_production():
+        messages.error(request, "Selecciona una hembra válida para leche.")
+        return _back(request)
+    morning, afternoon = post.get("liters_morning"), post.get("liters_afternoon")
+    mv = float(morning) if morning not in (None, "") else 0.0
+    av = float(afternoon) if afternoon not in (None, "") else 0.0
+    if mv <= 0 and av <= 0:
+        messages.error(request, "Debes dejar al menos un período con litros.")
+        return _back(request)
+    for period, val in (("mañana", morning), ("tarde", afternoon)):
+        existing = MilkProduction.objects.filter(farm_id=farm.id, animal_id=animal.id,
+                                                 production_date=d, period=period).first()
+        if val in (None, "") or float(val) <= 0:
+            if existing:
+                existing.delete()
+            continue
+        MilkProduction.objects.update_or_create(
+            farm_id=farm.id, animal_id=animal.id, production_date=d, period=period,
+            defaults={"liters": float(val), "notes": post.get("notes") or (existing.notes if existing else None)})
+    messages.success(request, "Producción diaria del animal actualizada correctamente.")
+    return _back(request)
+
+
+@login_required
+@require_POST
+def update_daily_milk(request, pk):
+    farm = _farm(request)
+    if not farm:
+        return redirect("tenancy:farm_create")
+    row = get_object_or_404(DailyMilkProduction, pk=pk)
+    if int(row.farm_id) != int(farm.id):
+        from django.core.exceptions import PermissionDenied
+        raise PermissionDenied()
+    post = request.POST
+    d, liters = post.get("production_date"), post.get("liters")
+    if not d or liters in (None, ""):
+        messages.error(request, "Fecha y litros son obligatorios.")
+        return _back(request)
+    if DailyMilkProduction.objects.filter(farm_id=farm.id, production_date=d).exclude(id=row.id).exists():
+        messages.error(request, "Ya existe un registro de finca completa para esa fecha.")
+        return _back(request)
+    row.production_date = d
+    row.liters = float(liters)
+    row.notes = post.get("notes") or None
+    row.save()
+    messages.success(request, "Registro de finca actualizado correctamente.")
+    return _back(request)
+
+
+@login_required
+@require_POST
+def update_meat(request, pk):
+    farm = _farm(request)
+    if not farm:
+        return redirect("tenancy:farm_create")
+    row = get_object_or_404(MeatProduction, pk=pk)
+    if int(row.farm_id) != int(farm.id):
+        from django.core.exceptions import PermissionDenied
+        raise PermissionDenied()
+    post = request.POST
+    animal = Animal.objects.filter(farm_id=farm.id, id=post.get("animal_id")).first()
+    if not animal or not animal.can_register_production():
+        messages.error(request, animal.production_blocked_reason() if animal else "Animal inválido.")
+        return _back(request)
+    wk, wg = post.get("weight_kg"), post.get("weight_gain_kg")
+    if wk in (None, "") and wg in (None, ""):
+        messages.error(request, "Debes registrar peso actual o ganancia de peso.")
+        return _back(request)
+    row.animal_id = animal.id
+    row.production_date = post.get("production_date")
+    row.weight_kg = float(wk) if wk not in (None, "") else None
+    row.weight_gain_kg = float(wg) if wg not in (None, "") else None
+    row.notes = post.get("notes") or None
+    row.save()
+    messages.success(request, "Producción de carne actualizada correctamente.")
+    return _back(request)
+
+
+@login_required
+@require_POST
 def bulk_destroy_milk(request):
     farm = _farm(request)
     if not farm:
