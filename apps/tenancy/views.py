@@ -9,11 +9,36 @@ from django.views.decorators.http import require_http_methods, require_POST
 from .middleware import SESSION_FARM_KEY
 from .models import Farm, FarmUser
 
-DEFAULT_ROLES = {
-    "owner": {"name": "Propietario", "custom": False},
-    "manager": {"name": "Administrador de finca", "custom": False},
-    "employee": {"name": "Empleado", "custom": False},
+AVAILABLE_PERMISSIONS = {
+    "animals.view": "Ver animales",
+    "animals.manage": "Crear y editar animales",
+    "production.manage": "Registrar producción",
+    "lots.manage": "Gestionar lotes",
+    "events.manage": "Gestionar eventos",
+    "settings.manage": "Administrar configuración",
 }
+
+DEFAULT_ROLES = {
+    "owner": {"name": "Propietario", "description": "Acceso completo a la finca.",
+              "permissions": list(AVAILABLE_PERMISSIONS.keys()), "custom": False},
+    "manager": {"name": "Administrador de finca", "description": "Gestión de la operación diaria.",
+                "permissions": ["animals.view", "animals.manage", "production.manage", "lots.manage", "events.manage"],
+                "custom": False},
+    "employee": {"name": "Empleado", "description": "Consulta y registro básico.",
+                 "permissions": ["animals.view", "production.manage", "events.manage"], "custom": False},
+}
+
+
+def _slugify_role(name):
+    from django.utils.text import slugify
+    return slugify(name).replace("-", "_") or "rol"
+
+
+def _save_custom_roles(farm_id, roles):
+    from apps.saas.models import FarmSetting
+    custom = {k: v for k, v in roles.items() if v.get("custom")}
+    FarmSetting.objects.update_or_create(farm_id=farm_id, key="roles",
+                                         defaults={"value": json.dumps(custom, ensure_ascii=False)})
 
 
 @login_required(login_url="accounts:login")
@@ -98,7 +123,56 @@ def settings_index(request):
         "farm": farm, "members": members, "roles": _roles_for_farm(farm.id),
         "production_types": Farm.PRODUCTION_TYPES,
         "owner_farms": request.user.farms().order_by("name"),
+        "available_permissions": AVAILABLE_PERMISSIONS,
     })
+
+
+@login_required(login_url="accounts:login")
+@require_POST
+def settings_store_role(request):
+    farm = _current_farm(request)
+    if not farm:
+        return redirect("tenancy:farm_create")
+    _require_owner(request, farm)
+    name = (request.POST.get("name") or "").strip()
+    if not name:
+        messages.error(request, "El nombre del rol es obligatorio.")
+        return redirect("tenancy:settings")
+    roles = _roles_for_farm(farm.id)
+    key = _slugify_role(name)
+    if key in roles:
+        messages.error(request, "Ya existe un rol con ese nombre.")
+        return redirect("tenancy:settings")
+    perms = [p for p in request.POST.getlist("permissions") if p in AVAILABLE_PERMISSIONS]
+    roles[key] = {"name": name, "description": request.POST.get("description") or None,
+                  "permissions": perms, "custom": True}
+    _save_custom_roles(farm.id, roles)
+    messages.success(request, "Rol creado correctamente.")
+    return redirect("tenancy:settings")
+
+
+@login_required(login_url="accounts:login")
+@require_POST
+def settings_destroy_role(request, role):
+    farm = _current_farm(request)
+    if not farm:
+        return redirect("tenancy:farm_create")
+    _require_owner(request, farm)
+    roles = _roles_for_farm(farm.id)
+    data = roles.get(role)
+    if not data:
+        messages.error(request, "El rol seleccionado no existe.")
+        return redirect("tenancy:settings")
+    if not data.get("custom"):
+        messages.warning(request, "Los roles base no se pueden eliminar.")
+        return redirect("tenancy:settings")
+    if FarmUser.objects.filter(farm_id=farm.id, role=role).exists():
+        messages.warning(request, "No puedes eliminar un rol asignado a usuarios.")
+        return redirect("tenancy:settings")
+    del roles[role]
+    _save_custom_roles(farm.id, roles)
+    messages.success(request, "Rol eliminado correctamente.")
+    return redirect("tenancy:settings")
 
 
 @login_required(login_url="accounts:login")

@@ -12,4 +12,6 @@ urlpatterns = [
     path("configuracion/empleados", views.settings_attach_member, name="settings.members.attach"),
     path("configuracion/empleados/<int:user_id>/rol", views.settings_member_role, name="settings.members.role"),
     path("configuracion/empleados/<int:user_id>/eliminar", views.settings_detach_member, name="settings.members.detach"),
+    path("configuracion/roles", views.settings_store_role, name="settings.roles.store"),
+    path("configuracion/roles/<str:role>/eliminar", views.settings_destroy_role, name="settings.roles.destroy"),
 ]

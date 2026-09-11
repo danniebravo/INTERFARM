@@ -81,4 +81,39 @@
         </div>
     </div>
 </div>
+
+{# Roles #}
+<div class="bg-white rounded-2xl border border-black/5 p-6 mt-5">
+    <h2 class="font-bold text-gray-800 mb-3">Roles y permisos</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="space-y-2">
+            {% for key, r in roles.items %}
+            <div class="flex items-start gap-2 border-b border-black/5 pb-2">
+                <div class="flex-1">
+                    <div class="text-sm font-semibold">{{ r.name }} {% if not r.custom %}<span class="ml-1 rounded bg-gray-100 text-gray-600 px-1.5 py-0.5 text-[10px]">base</span>{% else %}<span class="ml-1 rounded bg-blue-100 text-blue-800 px-1.5 py-0.5 text-[10px]">personalizado</span>{% endif %}</div>
+                    {% if r.description %}<div class="text-xs text-gray-500">{{ r.description }}</div>{% endif %}
+                    <div class="text-[11px] text-gray-400 mt-0.5">{% for p in r.permissions %}{{ p }}{% if not forloop.last %} · {% endif %}{% endfor %}</div>
+                </div>
+                {% if r.custom %}
+                <form method="post" action="{% url 'tenancy:settings.roles.destroy' key %}" onsubmit="return confirm('¿Eliminar el rol?');">{% csrf_token %}<button class="text-xs text-red-600">✕</button></form>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        <div class="border-l-0 md:border-l md:border-black/5 md:pl-4">
+            <p class="text-sm font-bold text-gray-700 mb-2">Crear rol personalizado</p>
+            <form method="post" action="{% url 'tenancy:settings.roles.store' %}" class="space-y-2">
+                {% csrf_token %}
+                <input type="text" name="name" placeholder="Nombre del rol" class="w-full rounded-lg border border-black/15 px-3 py-2 text-sm">
+                <input type="text" name="description" placeholder="Descripción (opcional)" class="w-full rounded-lg border border-black/15 px-3 py-2 text-sm">
+                <div class="grid grid-cols-1 gap-1">
+                    {% for pkey, plabel in available_permissions.items %}
+                    <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="permissions" value="{{ pkey }}"> {{ plabel }}</label>
+                    {% endfor %}
+                </div>
+                <button class="rounded-lg bg-brand hover:bg-brand-dark px-4 py-2 text-sm font-semibold text-white">Crear rol</button>
+            </form>
+        </div>
+    </div>
+</div>
 {% endblock %}
