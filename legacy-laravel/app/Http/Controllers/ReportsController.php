@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Animal;
+use App\Models\DailyMilkProduction;
 use App\Models\Event;
 use App\Models\FinancialTransaction;
 use App\Models\Lot;
@@ -116,12 +117,19 @@ class ReportsController extends Controller
                 ->get();
         }
 
+        // Litros reales por día: total diario de la finca si existe; si no, suma por animal.
+        $dailyLiters = $this->dailyLitersRows($farm->id, $filters, $animalIds);
+        $salesRecords = $financialRecords
+            ->whereIn('type', [FinancialTransaction::TYPE_INCOME, 'ingreso'])
+            ->sortBy('transaction_date')
+            ->values();
+
         $summary = [
             'animals' => $animals->count(),
             'active_animals' => $animals->filter(fn ($animal) => $animal->isActive())->count(),
             'female_animals' => $animals->filter(fn ($animal) => $animal->isFemale())->count(),
             'male_animals' => $animals->filter(fn ($animal) => $animal->isMale())->count(),
-            'milk_liters' => round((float) $milkRecords->sum('liters'), 2),
+            'milk_liters' => round((float) $dailyLiters->sum('official'), 2),
             'meat_weight' => round((float) $meatRecords->sum(fn ($record) => (float) ($record->weight_gain_kg ?: $record->weight_kg)), 2),
             'income' => round((float) $financialRecords->whereIn('type', [FinancialTransaction::TYPE_INCOME, 'ingreso'])->sum('amount'), 2),
             'expense' => round((float) $financialRecords->whereIn('type', [FinancialTransaction::TYPE_EXPENSE, 'gasto'])->sum('amount'), 2),
@@ -269,6 +277,8 @@ class ReportsController extends Controller
             'summary',
             'animalsByLot',
             'productionByAnimal',
+            'dailyLiters',
+            'salesRecords',
             'chartData',
             'lactationReport',
             'pregnancyReport',
@@ -285,7 +295,7 @@ class ReportsController extends Controller
         }
 
         $module = strtolower($module);
-        $allowedModules = ['inventario', 'lotes', 'produccion', 'finanzas', 'eventos', 'lactancia', 'prenez', 'crias', 'todo'];
+        $allowedModules = ['inventario', 'lotes', 'produccion', 'litros_diarios', 'ventas', 'finanzas', 'eventos', 'lactancia', 'prenez', 'crias', 'todo'];
 
         if (! in_array($module, $allowedModules, true)) {
             abort(404);
@@ -304,8 +314,8 @@ class ReportsController extends Controller
             fwrite($handle, "\xEF\xBB\xBF");
 
             if ($module === 'todo') {
-                foreach (['inventario', 'lotes', 'produccion', 'finanzas', 'eventos', 'lactancia', 'prenez', 'crias'] as $section) {
-                    fputcsv($handle, ['Módulo', $this->exportModuleLabel($section)]);
+                foreach (['inventario', 'lotes', 'produccion', 'litros_diarios', 'ventas', 'finanzas', 'eventos', 'lactancia', 'prenez', 'crias'] as $section) {
+                    fputcsv($handle, ['Módulo',$this->exportModuleLabel($section)]);
                     $this->writeExportSection($handle, $section, $farm->id, $filters, $animals, $animalIds);
                     fputcsv($handle, []);
                 }
@@ -324,8 +334,8 @@ class ReportsController extends Controller
         $handle = fopen('php://temp', 'r+');
 
         if ($module === 'todo') {
-            foreach (['inventario', 'lotes', 'produccion', 'finanzas', 'eventos', 'lactancia', 'prenez', 'crias'] as $section) {
-                fputcsv($handle, ['Modulo', $this->exportModuleLabel($section)]);
+            foreach (['inventario', 'lotes', 'produccion', 'litros_diarios', 'ventas', 'finanzas', 'eventos', 'lactancia', 'prenez', 'crias'] as $section) {
+                fputcsv($handle, ['Modulo',$this->exportModuleLabel($section)]);
                 $this->writeExportSection($handle, $section, $farm->id, $filters, $animals, $animalIds);
                 fputcsv($handle, []);
             }
@@ -464,6 +474,8 @@ class ReportsController extends Controller
             'inventario' => $this->writeInventoryCsv($handle, $animals),
             'lotes' => $this->writeLotsCsv($handle, $farmId, $filters),
             'produccion' => $this->writeProductionCsv($handle, $farmId, $filters, $animalIds),
+            'litros_diarios' => $this->writeDailyLitersCsv($handle, $farmId, $filters, $animalIds),
+            'ventas' => $this->writeSalesCsv($handle, $farmId, $filters),
             'finanzas' => $this->writeFinancesCsv($handle, $farmId, $filters),
             'eventos' => $this->writeEventsCsv($handle, $farmId, $filters, $animalIds),
             'lactancia' => $this->writeLactationCsv($handle, $farmId),
@@ -529,6 +541,28 @@ class ReportsController extends Controller
     {
         fputcsv($handle, ['Tipo', 'Fecha', 'Animal', 'Código animal', 'Lote', 'Periodo', 'Litros', 'Peso kg', 'Ganancia kg', 'Notas']);
 
+        // Total diario de la finca (donde están los litros reales cuando no se registra por animal).
+        if ($this->hasNoAnimalFilters($filters) && Schema::hasTable('daily_milk_productions')) {
+            DailyMilkProduction::where('farm_id', $farmId)
+                ->whereBetween('production_date', [$filters['start_date'], $filters['end_date']])
+                ->orderByDesc('production_date')
+                ->get()
+                ->each(function ($record) use ($handle) {
+                    fputcsv($handle, [
+                        'Leche (total finca)',
+                        optional($record->production_date)->format('Y-m-d'),
+                        'Total finca',
+                        null,
+                        null,
+                        'Día',
+                        $record->liters,
+                        null,
+                        null,
+                        $record->notes,
+                    ]);
+                });
+        }
+
         if (Schema::hasTable('milk_productions')) {
             MilkProduction::with('animal.lot')
                 ->where('farm_id', $farmId)
@@ -576,6 +610,110 @@ class ReportsController extends Controller
                     ]);
                 });
         }
+    }
+
+    protected function hasNoAnimalFilters(array $filters): bool
+    {
+        return ! ($filters['animal_id'] || $filters['lot_id'] || $filters['sex'] || $filters['purpose'] || $filters['status'] || $filters['search']);
+    }
+
+    /**
+     * Litros por día en el rango. Litros oficiales = total diario de finca si existe,
+     * si no la suma por animal. Mañana/tarde salen solo de los registros por animal.
+     */
+    protected function dailyLitersRows(int $farmId, array $filters, array $animalIds): \Illuminate\Support\Collection
+    {
+        $perAnimal = collect();
+        if (Schema::hasTable('milk_productions')) {
+            $perAnimal = MilkProduction::where('farm_id', $farmId)
+                ->whereBetween('production_date', [$filters['start_date'], $filters['end_date']])
+                ->when($filters['animal_id'], fn ($query) => $query->where('animal_id', $filters['animal_id']))
+                ->when(! $this->hasNoAnimalFilters($filters), fn ($query) => $query->whereIn('animal_id', $animalIds ?: [0]))
+                ->get(['production_date', 'period', 'liters'])
+                ->groupBy(fn ($row) => Carbon::parse($row->production_date)->format('Y-m-d'));
+        }
+
+        $farmTotals = collect();
+        if ($this->hasNoAnimalFilters($filters) && Schema::hasTable('daily_milk_productions')) {
+            $farmTotals = DailyMilkProduction::where('farm_id', $farmId)
+                ->whereBetween('production_date', [$filters['start_date'], $filters['end_date']])
+                ->get()
+                ->groupBy(fn ($row) => Carbon::parse($row->production_date)->format('Y-m-d'));
+        }
+
+        $start = Carbon::parse($filters['start_date'])->startOfDay();
+        $end = Carbon::parse($filters['end_date'])->startOfDay();
+        $dates = collect($perAnimal->keys())->merge($farmTotals->keys());
+
+        // Rangos cortos: mostrar todos los días (aunque estén en 0); largos: solo días con datos.
+        if ($start->diffInDays($end) <= 62) {
+            for ($day = $start->copy(); $day->lte($end); $day->addDay()) {
+                $dates->push($day->format('Y-m-d'));
+            }
+        }
+
+        return $dates->unique()->sort()->values()->map(function ($date) use ($perAnimal, $farmTotals) {
+            $rows = $perAnimal->get($date, collect());
+            $norm = fn ($row) => mb_strtolower(trim((string) $row->period));
+            $morning = (float) $rows->filter(fn ($r) => in_array($norm($r), ['mañana', 'manana'], true))->sum('liters');
+            $evening = (float) $rows->filter(fn ($r) => $norm($r) === 'tarde')->sum('liters');
+            $animalsTotal = (float) $rows->sum('liters');
+            $farmTotal = $farmTotals->has($date) ? (float) $farmTotals->get($date)->sum('liters') : null;
+
+            return [
+                'date' => $date,
+                'morning' => round($morning, 2),
+                'evening' => round($evening, 2),
+                'animals_total' => round($animalsTotal, 2),
+                'farm_total' => $farmTotal === null ? null : round($farmTotal, 2),
+                'official' => round($farmTotal ?? $animalsTotal, 2),
+                'source' => $farmTotal !== null ? 'Total finca' : ($animalsTotal > 0 ? 'Por animal' : '—'),
+            ];
+        });
+    }
+
+    protected function writeDailyLitersCsv($handle, int $farmId, array $filters, array $animalIds): void
+    {
+        fputcsv($handle, ['Fecha', 'Mañana (por animal)', 'Tarde (por animal)', 'Total por animal', 'Total finca (diario)', 'Litros del día', 'Fuente']);
+
+        $rows = $this->dailyLitersRows($farmId, $filters, $animalIds);
+        foreach ($rows as $row) {
+            fputcsv($handle, [$row['date'], $row['morning'], $row['evening'], $row['animals_total'], $row['farm_total'], $row['official'], $row['source']]);
+        }
+        fputcsv($handle, ['TOTAL', null, null, null, null, round($rows->sum('official'), 2), null]);
+    }
+
+    protected function writeSalesCsv($handle, int $farmId, array $filters): void
+    {
+        fputcsv($handle, ['Fecha', 'Concepto', 'Categoría', 'Litros vendidos', 'Precio por litro', 'Valor', 'Método de pago', 'Descripción']);
+
+        if (! Schema::hasTable('financial_transactions')) {
+            return;
+        }
+
+        $total = 0;
+        $liters = 0;
+        FinancialTransaction::where('farm_id', $farmId)
+            ->whereIn('type', [FinancialTransaction::TYPE_INCOME, 'ingreso'])
+            ->whereBetween('transaction_date', [$filters['start_date'], $filters['end_date']])
+            ->orderBy('transaction_date')
+            ->get()
+            ->each(function ($record) use ($handle, &$total, &$liters) {
+                $total += (float) $record->amount;
+                $liters += (float) $record->milk_liters_sold;
+                fputcsv($handle, [
+                    optional($record->transaction_date)->format('Y-m-d'),
+                    $record->title,
+                    $record->category,
+                    $record->milk_liters_sold,
+                    $record->milk_price_per_liter,
+                    $record->amount,
+                    $record->payment_method,
+                    $record->description,
+                ]);
+            });
+
+        fputcsv($handle, ['TOTAL', null, null, round($liters, 2), null, round($total, 2), null, null]);
     }
 
     protected function writeFinancesCsv($handle, int $farmId, array $filters): void
@@ -737,6 +875,8 @@ class ReportsController extends Controller
             'inventario' => 'Inventario',
             'lotes' => 'Lotes',
             'produccion' => 'Producción',
+            'litros_diarios' => 'Litros por día',
+            'ventas' => 'Ventas',
             'finanzas' => 'Finanzas',
             'eventos' => 'Eventos',
             'lactancia' => 'Lactancia',
@@ -748,8 +888,33 @@ class ReportsController extends Controller
 
     protected function resolveFilters(Request $request): array
     {
-        $start = $request->date('start_date') ?: now()->startOfMonth();
-        $end = $request->date('end_date') ?: now()->endOfMonth();
+        $today = now();
+        $presetStart = null;
+        $presetEnd = null;
+        $range = (string) $request->get('range');
+
+        if ($range === 'fortnight_current') {
+            $presetStart = $today->day <= 15 ? $today->copy()->startOfMonth() : $today->copy()->day(16);
+            $presetEnd = $today->copy();
+        } elseif ($range === 'month_prev') {
+            $presetStart = $today->copy()->subMonthNoOverflow()->startOfMonth();
+            $presetEnd = $today->copy()->subMonthNoOverflow()->endOfMonth();
+        } elseif ($range === 'month') {
+            $presetStart = $today->copy()->startOfMonth();
+            $presetEnd = $today->copy()->endOfMonth();
+        } elseif ($range === 'fortnight_prev' || ! $request->filled('start_date') || ! $request->filled('end_date')) {
+            // Por defecto: última quincena CERRADA (1–15 o 16–fin de mes).
+            if ($today->day >= 16) {
+                $presetStart = $today->copy()->startOfMonth();
+                $presetEnd = $today->copy()->day(15);
+            } else {
+                $presetStart = $today->copy()->subMonthNoOverflow()->day(16);
+                $presetEnd = $today->copy()->subMonthNoOverflow()->endOfMonth();
+            }
+        }
+
+        $start = $presetStart ?: $request->date('start_date');
+        $end = $presetEnd ?: $request->date('end_date');
 
         if ($start->greaterThan($end)) {
             [$start, $end] = [$end, $start];
@@ -763,7 +928,8 @@ class ReportsController extends Controller
             'sex' => in_array($request->get('sex'), ['hembra', 'macho'], true) ? $request->get('sex') : null,
             'purpose' => in_array($request->get('purpose'), ['leche', 'carne', 'doble_proposito', 'crianza'], true) ? $request->get('purpose') : null,
             'status' => in_array($request->get('status'), ['activo', 'vendido', 'fallecido'], true) ? $request->get('status') : null,
-            'report_type' => in_array($request->get('report_type'), ['general', 'inventario', 'produccion', 'reproduccion', 'finanzas', 'eventos'], true)
+            'range' => $range,
+            'report_type' => in_array($request->get('report_type'), ['general', 'inventario', 'produccion', 'litros', 'ventas', 'reproduccion', 'finanzas', 'eventos'], true)
                 ? $request->get('report_type')
                 : 'general',
             'search' => trim((string) $request->get('search')),

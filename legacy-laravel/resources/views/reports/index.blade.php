@@ -5,6 +5,8 @@
         'general' => 'General',
         'inventario' => 'Inventario',
         'produccion' => 'Producción',
+        'litros' => 'Litros por día',
+        'ventas' => 'Ventas',
         'reproduccion' => 'Reproducción y crías',
         'finanzas' => 'Finanzas',
         'eventos' => 'Eventos',
@@ -15,6 +17,8 @@
         'inventario' => 'Inventario',
         'lotes' => 'Lotes',
         'produccion' => 'Producción',
+        'litros_diarios' => 'Litros por día',
+        'ventas' => 'Ventas',
         'finanzas' => 'Finanzas',
         'eventos' => 'Eventos',
         'lactancia' => 'Lactancia',
@@ -38,6 +42,15 @@
     $showInventory = in_array($filters['report_type'], ['general', 'inventario'], true);
     $showProduction = in_array($filters['report_type'], ['general', 'produccion'], true);
     $showFinance = in_array($filters['report_type'], ['general', 'finanzas'], true);
+    $showLiters = in_array($filters['report_type'], ['general', 'produccion', 'litros'], true);
+    $showSales = in_array($filters['report_type'], ['general', 'finanzas', 'ventas'], true);
+    $activeRange = $filters['range'] ?: ((request()->filled('start_date') && request()->filled('end_date')) ? 'custom' : 'fortnight_prev');
+    $quickRanges = [
+        'fortnight_prev' => 'Quincena anterior',
+        'fortnight_current' => 'Quincena actual',
+        'month_prev' => 'Mes anterior',
+        'month' => 'Este mes',
+    ];
     $showEvents = in_array($filters['report_type'], ['general', 'eventos'], true);
     $showReproduction = in_array($filters['report_type'], ['general', 'reproduccion'], true);
     $productionChartMax = max(1, (float) collect($chartData['production'])->flatMap(fn ($row) => [$row['milk'], $row['meat']])->max());
@@ -586,33 +599,69 @@
         <button type="button"
                 id="printReportButton"
                 data-print-title="{{ $printFileName }}"
-                class="no-print inline-flex items-center justify-center rounded-xl bg-green-600 px-4 py-2 text-sm font-black text-white shadow-lg shadow-green-600/20 transition hover:bg-green-700">
-            Descargar o imprimir
+                class="no-print inline-flex items-center justify-center rounded-xl border border-green-600/30 bg-white px-4 py-2 text-sm font-black text-green-700 transition hover:bg-green-50">
+            Imprimir esta vista
         </button>
     </div>
 
     <section class="report-card no-print p-5">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-                <h2 class="text-lg font-black text-gray-900 dark:text-white">Exportar datos</h2>
+                <h2 class="text-lg font-black text-gray-900 dark:text-white">Período del reporte</h2>
                 <p class="mt-1 text-sm font-bold text-gray-500 dark:text-gray-300">
-                    Descarga en CSV o Excel (.xlsx) con los filtros actuales, por modulo.
+                    Mostrando del {{ \Carbon\Carbon::parse($filters['start_date'])->format('d/m/Y') }} al {{ \Carbon\Carbon::parse($filters['end_date'])->format('d/m/Y') }}
+                    @if($activeRange === 'custom') (fechas personalizadas) @endif
                 </p>
+                <div class="mt-3 flex flex-wrap gap-2">
+                    @foreach($quickRanges as $rangeKey => $rangeLabel)
+                        <a href="{{ route('reports.index', array_merge(request()->except('page', 'start_date', 'end_date', 'range', 'print'), ['range' => $rangeKey])) }}"
+                           class="inline-flex h-[38px] items-center rounded-xl border px-3 text-xs font-black transition {{ $activeRange === $rangeKey ? 'border-green-600 bg-green-600 text-white' : 'border-green-600/20 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-400/20 dark:bg-green-500/10 dark:text-green-200' }}">
+                            {{ $rangeLabel }}
+                        </a>
+                    @endforeach
+                </div>
             </div>
 
-            <div class="flex flex-wrap gap-2">
-                @foreach($exportModules as $module => $label)
-                    <div class="inline-flex h-[38px] items-center gap-2 rounded-xl border border-green-600/20 bg-green-50 px-3 dark:border-green-400/20 dark:bg-green-500/10">
-                        <span class="text-xs font-black text-green-700 dark:text-green-200">{{ $label }}</span>
-                        <a href="{{ route('reports.export', array_merge(['module' => $module], request()->except('page'))) }}"
-                           class="text-[11px] font-black text-green-700 underline transition hover:text-green-900 dark:text-green-200">CSV</a>
-                        <a href="{{ route('reports.export', array_merge(['module' => $module, 'format' => 'xlsx'], request()->except('page'))) }}"
-                           class="text-[11px] font-black text-green-700 underline transition hover:text-green-900 dark:text-green-200">Excel</a>
-                    </div>
-                @endforeach
-            </div>
+            <button type="button" id="openExportModal"
+                    class="inline-flex h-[44px] items-center justify-center rounded-xl bg-green-600 px-5 text-sm font-black text-white shadow-lg shadow-green-600/20 transition hover:bg-green-700">
+                Descargar reporte…
+            </button>
         </div>
     </section>
+
+    <div id="exportModal" class="no-print" style="display:none;position:fixed;inset:0;z-index:70;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.55)">
+        <div class="report-card p-5" style="width:100%;max-width:440px;max-height:90vh;overflow:auto">
+            <h3 class="text-lg font-black text-gray-900 dark:text-white">Descargar reporte</h3>
+            <p class="mt-1 text-sm font-bold text-gray-500 dark:text-gray-300">
+                Período: {{ \Carbon\Carbon::parse($filters['start_date'])->format('d/m/Y') }} al {{ \Carbon\Carbon::parse($filters['end_date'])->format('d/m/Y') }}
+            </p>
+
+            <label class="mt-4 block text-xs font-black uppercase text-gray-500 dark:text-gray-400" for="exportModule">1. ¿Qué reporte?</label>
+            <div class="report-select-wrap mt-1">
+                <select id="exportModule" class="report-input">
+                    <option value="">Elige un reporte…</option>
+                    @foreach($exportModules as $module => $label)
+                        <option value="{{ $module }}">{{ $label }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div class="mt-4 text-xs font-black uppercase text-gray-500 dark:text-gray-400">2. ¿En qué formato?</div>
+            <div class="mt-2 grid gap-2">
+                @foreach(['xlsx' => 'Excel (.xlsx)', 'csv' => 'CSV (.csv)', 'pdf' => 'PDF (se abre para guardar como PDF)'] as $fmt => $fmtLabel)
+                    <label class="flex cursor-pointer items-center gap-3 rounded-xl border border-gray-200 px-3 py-3 text-sm font-black text-gray-800 dark:border-white/10 dark:text-gray-100">
+                        <input type="radio" name="exportFormat" value="{{ $fmt }}" style="width:20px;height:20px;accent-color:#16a34a">
+                        {{ $fmtLabel }}
+                    </label>
+                @endforeach
+            </div>
+
+            <div class="mt-5 flex justify-end gap-2">
+                <button type="button" id="closeExportModal" class="inline-flex h-[42px] items-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-black text-gray-700">Cancelar</button>
+                <button type="button" id="confirmExport" disabled class="inline-flex h-[42px] items-center rounded-xl bg-green-600 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-40">Descargar</button>
+            </div>
+        </div>
+    </div>
 
     <form method="GET" action="{{ route('reports.index') }}" class="report-card no-print p-5" data-auto-filter>
         <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
@@ -986,6 +1035,103 @@
         </section>
     @endif
 
+    @if($showLiters)
+        <section class="report-card p-5">
+            <h2 class="text-lg font-black text-gray-900 dark:text-white">Litros por día</h2>
+            <p class="mt-1 text-sm font-bold text-gray-500 dark:text-gray-300">
+                "Litros del día" usa el total de la finca si fue registrado; si no, la suma por animal.
+            </p>
+            <div class="report-table-wrap mt-4">
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Mañana</th>
+                            <th>Tarde</th>
+                            <th>Total finca (diario)</th>
+                            <th>Litros del día</th>
+                            <th>Fuente</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($dailyLiters as $day)
+                            <tr>
+                                <td>{{ \Carbon\Carbon::parse($day['date'])->format('d/m/Y') }}</td>
+                                <td>{{ $day['morning'] > 0 ? number_format($day['morning'], 1, ',', '.') . ' L' : '—' }}</td>
+                                <td>{{ $day['evening'] > 0 ? number_format($day['evening'], 1, ',', '.') . ' L' : '—' }}</td>
+                                <td>{{ $day['farm_total'] !== null ? number_format($day['farm_total'], 1, ',', '.') . ' L' : '—' }}</td>
+                                <td><strong>{{ $day['official'] > 0 ? number_format($day['official'], 1, ',', '.') . ' L' : '—' }}</strong></td>
+                                <td>{{ $day['source'] }}</td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="6">No hay litros registrados en este rango.</td></tr>
+                        @endforelse
+                        @if($dailyLiters->isNotEmpty())
+                            <tr>
+                                <td colspan="4"><strong>Total del período</strong></td>
+                                <td colspan="2"><strong>{{ number_format($dailyLiters->sum('official'), 1, ',', '.') }} L</strong></td>
+                            </tr>
+                        @endif
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    @endif
+
+    @if($showSales)
+        @php
+            $salesTotal = (float) $salesRecords->sum('amount');
+            $salesLiters = (float) $salesRecords->sum('milk_liters_sold');
+            $salesByCategory = $salesRecords->groupBy(fn ($r) => $r->category ?: 'Sin categoría')
+                ->map(fn ($items) => (float) $items->sum('amount'))
+                ->sortDesc();
+        @endphp
+        <section class="report-card p-5">
+            <h2 class="text-lg font-black text-gray-900 dark:text-white">Ventas del período</h2>
+            <p class="mt-1 text-sm font-bold text-gray-500 dark:text-gray-300">
+                Total vendido: <strong>${{ number_format($salesTotal, 0, ',', '.') }}</strong>
+                @if($salesLiters > 0) · {{ number_format($salesLiters, 1, ',', '.') }} L de leche vendidos @endif
+            </p>
+            @if($salesByCategory->isNotEmpty())
+                <div class="mt-3 flex flex-wrap gap-2">
+                    @foreach($salesByCategory as $category => $categoryTotal)
+                        <span class="rounded-full border border-green-600/20 bg-green-50 px-3 py-1 text-xs font-black text-green-700 dark:border-green-400/20 dark:bg-green-500/10 dark:text-green-200">
+                            {{ $category }}: ${{ number_format($categoryTotal, 0, ',', '.') }}
+                        </span>
+                    @endforeach
+                </div>
+            @endif
+            <div class="report-table-wrap mt-4">
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Concepto</th>
+                            <th>Categoría</th>
+                            <th>Litros</th>
+                            <th>Precio/L</th>
+                            <th>Valor</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($salesRecords as $sale)
+                            <tr>
+                                <td>{{ optional($sale->transaction_date)->format('d/m/Y') }}</td>
+                                <td>{{ $sale->title }}</td>
+                                <td>{{ $sale->category ?: '—' }}</td>
+                                <td>{{ $sale->milk_liters_sold ? number_format((float) $sale->milk_liters_sold, 1, ',', '.') . ' L' : '—' }}</td>
+                                <td>{{ $sale->milk_price_per_liter ? '$' . number_format((float) $sale->milk_price_per_liter, 0, ',', '.') : '—' }}</td>
+                                <td>${{ number_format((float) $sale->amount, 0, ',', '.') }}</td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="6">No hay ventas registradas en este rango.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    @endif
+
     @if($showProduction)
         <section class="report-card p-5">
             <h2 class="text-lg font-black text-gray-900 dark:text-white">Rendimiento por animal</h2>
@@ -1088,7 +1234,50 @@ document.addEventListener('DOMContentLoaded', () => {
     const printButton = document.getElementById('printReportButton');
     const originalTitle = document.title;
 
+    // Ventana "Descargar reporte": elegir reporte + formato (ninguno viene marcado).
+    const modal = document.getElementById('exportModal');
+    if (modal) {
+        document.body.appendChild(modal); // evita que un ancestro con transform lo descuadre
+        const moduleSelect = document.getElementById('exportModule');
+        const confirmBtn = document.getElementById('confirmExport');
+        const exportUrl = @json(route('reports.export', ['module' => '__MODULE__']));
+        const indexUrl = @json(route('reports.index'));
+        const pdfType = { produccion: 'produccion', litros_diarios: 'litros', ventas: 'ventas', finanzas: 'finanzas', inventario: 'inventario', lotes: 'inventario', eventos: 'eventos', lactancia: 'reproduccion', prenez: 'reproduccion', crias: 'reproduccion', todo: 'general' };
+        const chosenFormat = () => (modal.querySelector('input[name="exportFormat"]:checked') || {}).value || '';
+        const refresh = () => { confirmBtn.disabled = !(moduleSelect.value && chosenFormat()); };
+
+        document.getElementById('openExportModal').addEventListener('click', () => { modal.style.display = 'flex'; });
+        document.getElementById('closeExportModal').addEventListener('click', () => { modal.style.display = 'none'; });
+        modal.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
+        moduleSelect.addEventListener('change', refresh);
+        modal.querySelectorAll('input[name="exportFormat"]').forEach((r) => r.addEventListener('change', refresh));
+
+        confirmBtn.addEventListener('click', () => {
+            const params = new URLSearchParams(window.location.search);
+            params.delete('page');
+            params.delete('print');
+            const format = chosenFormat();
+            const module = moduleSelect.value;
+            if (!module || !format) return;
+
+            if (format === 'pdf') {
+                params.set('report_type', pdfType[module] || 'general');
+                params.set('print', '1');
+                window.location.href = indexUrl + '?' + params.toString();
+                return;
+            }
+            if (format === 'xlsx') params.set('format', 'xlsx'); else params.delete('format');
+            window.location.href = exportUrl.replace('__MODULE__', module) + '?' + params.toString();
+            modal.style.display = 'none';
+        });
+    }
+
     if (!printButton) return;
+
+    // Llegó desde "PDF" en la ventana: abrir el cuadro de impresión (Guardar como PDF).
+    if (new URLSearchParams(window.location.search).get('print') === '1') {
+        setTimeout(() => printButton.click(), 700);
+    }
 
     printButton.addEventListener('click', async () => {
         document.title = printButton.dataset.printTitle || originalTitle;

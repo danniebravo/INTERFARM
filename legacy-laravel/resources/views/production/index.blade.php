@@ -696,6 +696,17 @@
             <div class="prod-section-title">Filtros de análisis</div>
             <div class="prod-section-subtitle">Consulta producción por rango de tiempo y por animal.</div>
 
+            <div class="mt-4 flex flex-wrap gap-2">
+                <a href="{{ route('reports.index', ['report_type' => 'litros', 'range' => 'fortnight_prev']) }}"
+                   class="inline-flex items-center rounded-xl bg-green-600 px-4 py-2 text-sm font-black text-white shadow transition hover:bg-green-700">
+                    Litros por día · quincena anterior
+                </a>
+                <a href="{{ route('reports.index', ['report_type' => 'litros', 'range' => 'fortnight_current']) }}"
+                   class="inline-flex items-center rounded-xl border border-green-600/30 bg-green-50 px-4 py-2 text-sm font-black text-green-700 transition hover:bg-green-100">
+                    Litros por día · quincena actual
+                </a>
+            </div>
+
             <form method="GET" action="{{ route('production.index') }}" class="mt-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4">
                 <div class="prod-field">
                     <label>Rango</label>
