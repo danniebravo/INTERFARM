@@ -57,7 +57,7 @@ class LactationController extends Controller
             $isPregnant = $animal->is_pregnant === 'si';
             $ageMonths = $animal->ageInMonths();
             $inCycle = ($animal->last_calving_date instanceof Carbon) || ($animal->is_pregnant === 'si');
-            $serviceDate = $animal->pregnancy_date instanceof Carbon ? $animal->pregnancy_date : null;
+            $serviceDate = ($isPregnant && $animal->pregnancy_date instanceof Carbon) ? $animal->pregnancy_date : null;
             $dryOffDate = $animal->dry_off_date instanceof Carbon ? $animal->dry_off_date : null;
             $isGone = $animal->isSold() || $animal->isDeceased();
             $goneDate = ($isGone && $animal->status_date instanceof Carbon) ? $animal->status_date : null;

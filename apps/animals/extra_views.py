@@ -70,7 +70,7 @@ def lactation_index(request):
     for a in females:
         lastc = a.last_calving_date
         preg = a.is_pregnant == "si"
-        service = a.pregnancy_date
+        service = a.pregnancy_date if preg else None
         dry = a.dry_off_date
         exp_calving = _add_months(service, 0) + timedelta(days=GESTATION_DAYS) if (preg and service) else None
         exp_dryoff = _add_months(service, 7) if (preg and service) else None

@@ -25,6 +25,7 @@ def _build_payload(data, farm_id, animal=None):
     plain = (data.get("notes") or "").strip()
     meta = S.get_notes_meta(animal.notes) if animal else {}
     notes = S.build_notes_payload(plain, meta)
+    preg = data.get("is_pregnant") == "si"  # si no está preñada se limpian fecha/toro/servicio
     return {
         "farm_id": farm_id,
         "lot_id": data.get("lot_id") or None,
@@ -44,10 +45,10 @@ def _build_payload(data, farm_id, animal=None):
         "notes": notes,
         "has_calved_before": data.get("has_calved_before") or None,
         "is_pregnant": data.get("is_pregnant") or None,
-        "pregnancy_date": data.get("pregnancy_date") or None,
-        "pregnancy_sire_id": data.get("pregnancy_sire_id") or (animal.pregnancy_sire_id if animal else None),
-        "pregnancy_sire_name_manual": data.get("pregnancy_sire_name_manual") or (animal.pregnancy_sire_name_manual if animal else None),
-        "service_type": data.get("service_type") or (animal.service_type if animal else None),
+        "pregnancy_date": (data.get("pregnancy_date") or None) if preg else None,
+        "pregnancy_sire_id": (data.get("pregnancy_sire_id") or (animal.pregnancy_sire_id if animal else None)) if preg else None,
+        "pregnancy_sire_name_manual": (data.get("pregnancy_sire_name_manual") or (animal.pregnancy_sire_name_manual if animal else None)) if preg else None,
+        "service_type": (data.get("service_type") or (animal.service_type if animal else None)) if preg else None,
         "last_calving_date": data.get("last_calving_date") or None,
         "calving_count": data.get("calving_count"),
         "status": data.get("status") or (animal.status if animal else Animal.STATUS_ACTIVE),

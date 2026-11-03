@@ -1248,6 +1248,8 @@ class AnimalController extends Controller
             ? $this->buildUpdatedNotesPreservingMeta($plainNotes, $animal)
             : $this->buildUpdatedNotesPreservingMeta($plainNotes, null);
 
+        $stillPregnant = ($data['is_pregnant'] ?? null) === 'si';
+
         $payload = [
             'farm_id' => $farmId,
             'lot_id' => $data['lot_id'] ?? null,
@@ -1267,10 +1269,11 @@ class AnimalController extends Controller
             'notes' => $notes,
             'has_calved_before' => $data['has_calved_before'] ?? null,
             'is_pregnant' => $data['is_pregnant'] ?? null,
-            'pregnancy_date' => $data['pregnancy_date'] ?? null,
-            'pregnancy_sire_id' => $data['pregnancy_sire_id'] ?? ($animal->pregnancy_sire_id ?? null),
-            'pregnancy_sire_name_manual' => $data['pregnancy_sire_name_manual'] ?? ($animal->pregnancy_sire_name_manual ?? null),
-            'service_type' => $data['service_type'] ?? ($animal->service_type ?? null),
+            // Si no está preñada, se limpian fecha, toro y servicio (antes quedaban guardados).
+            'pregnancy_date' => $stillPregnant ? ($data['pregnancy_date'] ?? null) : null,
+            'pregnancy_sire_id' => $stillPregnant ? ($data['pregnancy_sire_id'] ?? ($animal->pregnancy_sire_id ?? null)) : null,
+            'pregnancy_sire_name_manual' => $stillPregnant ? ($data['pregnancy_sire_name_manual'] ?? ($animal->pregnancy_sire_name_manual ?? null)) : null,
+            'service_type' => $stillPregnant ? ($data['service_type'] ?? ($animal->service_type ?? null)) : null,
             'last_calving_date' => $data['last_calving_date'] ?? null,
             'calving_count' => $data['calving_count'] ?? null,
             'status' => $data['status'] ?? ($animal->status ?? Animal::STATUS_ACTIVE),
